@@ -1,4 +1,4 @@
-const CACHE_NAME = "staff-claims-pwa-v7";
+const CACHE_NAME = "staff-claims-pwa-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -25,6 +25,7 @@ self.addEventListener("fetch", event => {
     caches.match(event.request).then(cached => cached || fetch(event.request).catch(() => caches.match("./index.html")))
   );
 });
+
 
 
 

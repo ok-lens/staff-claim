@@ -1912,13 +1912,11 @@
     }
 
 
-    function cleanFormalState(activeUser = null) {
-      const keepUsers = [];
-      if (activeUser) keepUsers.push(activeUser);
-      state.users = keepUsers;
-      state.claims = [];
+    function cleanFormalState(users = []) {
+      state.users = users;
+      state.claims = state.claims.filter(claim => isUuid(claim.id) && isUuid(claim.claimant_id));
       state.drafts = {};
-      state.auditLogs = [];
+      state.auditLogs = state.auditLogs.filter(log => !log.claim_id || isUuid(log.claim_id));
       state.sequence = {};
       state.formal_mode = true;
       state.formal_data_version = FORMAL_DATA_VERSION;
@@ -1929,24 +1927,31 @@
       return role === "boss" ? "admin" : (role || "staff");
     }
 
-    function upsertSessionUser(profile, email) {
-      const role = normalizeProfileRole(profile.role);
-      const user = {
+    function profileToUser(profile, email = "") {
+      return {
         id: profile.id,
         name: profile.full_name || email || "Staff",
-        email: email || "",
-        role,
+        email,
+        role: normalizeProfileRole(profile.role),
         is_active: profile.is_active !== false
       };
-      const existingIndex = state.users.findIndex(item => item.id === user.id);
-      if (existingIndex >= 0) state.users[existingIndex] = { ...state.users[existingIndex], ...user };
-      else state.users.push(user);
-      if (!state.formal_mode || state.formal_data_version !== FORMAL_DATA_VERSION) {
-        cleanFormalState(user);
-      } else {
-        saveState();
+    }
+
+    async function syncSupabaseUsers(client, activeProfile, activeEmail) {
+      const activeUser = profileToUser(activeProfile, activeEmail);
+      let users = [activeUser];
+      if (["accountant", "admin"].includes(activeUser.role)) {
+        const { data, error } = await client
+          .from("profiles")
+          .select("id, full_name, role, is_active")
+          .order("full_name", { ascending: true });
+        if (!error && Array.isArray(data)) {
+          users = data.map(profile => profileToUser(profile));
+        }
       }
-      return user;
+      const uniqueUsers = Array.from(new Map(users.filter(user => isUuid(user.id)).map(user => [user.id, user])).values());
+      cleanFormalState(uniqueUsers);
+      return uniqueUsers.find(user => user.id === activeUser.id) || activeUser;
     }
 
     async function loadOrCreateSupabaseProfile(authUser) {
@@ -1967,7 +1972,7 @@
         if (insert.error) throw insert.error;
         profile = insert.data;
       }
-      return upsertSessionUser(profile, authUser.email);
+      return syncSupabaseUsers(client, profile, authUser.email);
     }
 
     function setLoginMessage(message, tone = "") {
