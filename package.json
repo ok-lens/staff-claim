@@ -1,0 +1,10 @@
+{
+  "name": "staff-claim-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve-static.mjs",
+    "check": "node scripts/check-html.mjs"
+  }
+}

@@ -1,0 +1,2991 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Staff Claims</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M19 16h22a4 4 0 0 1 4 4v28l-5-3-5 3-5-3-5 3-5-3-5 3V20a4 4 0 0 1 4-4Z' fill='%23f8fafc'/%3E%3Cpath d='M24 27h16M24 35h12' stroke='%230f766e' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --surface: #ffffff;
+      --surface-soft: #f1f5f4;
+      --line: #dce3e1;
+      --text: #17201e;
+      --muted: #66736f;
+      --muted-2: #85918d;
+      --primary: #0f766e;
+      --primary-2: #115e59;
+      --danger: #b42318;
+      --warning: #b45309;
+      --blue: #2563eb;
+      --green: #16803c;
+      --shadow: 0 18px 55px rgba(15, 23, 42, .08);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      letter-spacing: 0;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app-shell {
+      width: min(430px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      background: var(--bg);
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, .05), 0 30px 90px rgba(15, 23, 42, .18);
+      position: relative;
+      overflow-x: hidden;
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      padding: 12px 14px 10px;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: grid;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 2px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: #14b8a6;
+      display: grid;
+      place-items: center;
+      color: #042f2e;
+      font-weight: 800;
+    }
+    .brand strong { display: block; font-size: 16px; }
+    .brand span { display: block; font-size: 12px; color: #a6b3c2; margin-top: 2px; }
+    .profile-switcher {
+      display: grid;
+      gap: 8px;
+      color: #cbd5e1;
+      font-size: 13px;
+    }
+    .profile-switcher select {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.14);
+      background: #111c34;
+      color: #f8fafc;
+      border-radius: var(--radius);
+      min-height: 42px;
+      padding: 0 10px;
+    }
+    .profile-switcher .session-name {
+      color: #f8fafc;
+      font-weight: 750;
+      font-size: 15px;
+    }
+    .profile-switcher .session-role {
+      color: #a6b3c2;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .profile-switcher .btn {
+      min-height: 36px;
+      padding: 0 10px;
+      background: #111c34;
+      border-color: rgba(255,255,255,.14);
+      color: #f8fafc;
+    }
+    .nav {
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: min(430px, 100%);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+      gap: 0;
+      background: rgba(255, 255, 255, .96);
+      border-top: 1px solid var(--line);
+      box-shadow: 0 -16px 40px rgba(15, 23, 42, .12);
+      backdrop-filter: blur(14px);
+      padding: 7px 6px max(7px, env(safe-area-inset-bottom));
+      z-index: 40;
+    }
+    .nav button {
+      width: 100%;
+      min-height: 50px;
+      border: 0;
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 4px 2px;
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.05;
+      font-weight: 750;
+    }
+    .nav button.active, .nav button:hover {
+      background: #e7f6f3;
+      color: var(--primary);
+    }
+    .nav .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: currentColor;
+      opacity: .7;
+      flex: 0 0 auto;
+    }
+    .main {
+      min-width: 0;
+      padding: 16px 14px 92px;
+    }
+    .main.login-main { padding-bottom: 24px; }
+    .login-page {
+      display: grid;
+      gap: 16px;
+    }
+    .login-hero {
+      padding: 20px;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .login-hero h1 {
+      font-size: 30px;
+      margin-bottom: 10px;
+    }
+    .login-hero p {
+      color: #cbd5e1;
+      margin: 0;
+    }
+    .login-options {
+      display: grid;
+      gap: 10px;
+    }
+    .login-option {
+      width: 100%;
+      min-height: 76px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .login-option strong {
+      display: block;
+      font-size: 18px;
+      color: var(--text);
+    }
+    .login-option span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .login-option b {
+      color: var(--primary);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      align-items: stretch;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .eyebrow {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 5px;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 0; font-size: 32px; line-height: 1.08; letter-spacing: 0; word-break: break-word; }
+    h2 { font-size: 22px; margin-bottom: 14px; }
+    h3 { font-size: 16px; margin-bottom: 10px; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: stretch;
+    }
+    .toolbar .btn { flex: 1; }
+    .btn {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: var(--radius);
+      font-weight: 650;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn.primary:hover { background: var(--primary-2); }
+    .btn.danger { border-color: #fecaca; color: var(--danger); background: #fff7f7; }
+    .btn.warning { border-color: #fed7aa; color: #9a3412; background: #fff7ed; }
+    .btn.ghost { background: transparent; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .reviewer-timeline { order: 2; }
+    .reviewer-actions { order: 2; }
+    .reviewer-detail { order: 3; }
+    .summary-grid {
+      grid-template-columns: 1fr;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .stat {
+      padding: 18px;
+    }
+    .stat span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .stat strong {
+      display: block;
+      font-size: 28px;
+      margin-top: 7px;
+      line-height: 1;
+    }
+    .stat small {
+      display: block;
+      color: var(--muted-2);
+      margin-top: 7px;
+      font-size: 12px;
+    }
+    .stat .btn {
+      width: 100%;
+      margin-top: 14px;
+    }
+    .section {
+      padding: 18px;
+      margin-top: 16px;
+    }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+    th, td {
+      text-align: left;
+      padding: 13px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+      font-size: 14px;
+    }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    tr:last-child td { border-bottom: 0; }
+    .desktop-table { display: none; }
+    .mobile-list { display: block; }
+    .claim-card {
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+    .claim-card + .claim-card { border-top: 1px solid var(--line); }
+    .compact-list {
+      gap: 0;
+    }
+    .compact-list .claim-card {
+      padding: 10px 0;
+    }
+    .compact-list .claim-card:first-child {
+      padding-top: 0;
+    }
+    .compact-list .claim-card:last-child {
+      padding-bottom: 0;
+    }
+    .compact-list .claim-title {
+      font-size: 14px;
+      line-height: 1.25;
+    }
+    .compact-list .claim-meta {
+      font-size: 12px;
+    }
+    .compact-list .btn {
+      min-height: 34px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+    .report-row {
+      display: grid;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .report-row:last-child { border-bottom: 0; }
+    .report-row-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .report-row-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .report-row .btn {
+      min-height: 34px;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+    .report-person-card .audit-list {
+      padding-top: 6px;
+    }
+    .report-person-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 7px;
+    }
+    .report-person-meta button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      background: #f8faf9;
+      cursor: pointer;
+    }
+    .report-person-meta button.active, .report-person-meta button:hover {
+      border-color: #99d8cf;
+      background: #e7f6f3;
+      color: var(--primary);
+    }
+    .audit-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      overflow: hidden;
+    }
+    .audit-card + .audit-card { margin-top: 10px; }
+    .audit-card summary {
+      list-style: none;
+      padding: 14px;
+      cursor: pointer;
+    }
+    .audit-card summary::-webkit-details-marker { display: none; }
+    .audit-card[open] summary { border-bottom: 1px solid var(--line); }
+    .audit-controls {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .audit-pager {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+    .audit-pager span {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+    .audit-list {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+    .audit-staff-list {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      background: #f8faf9;
+    }
+    .audit-simple-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .audit-simple-row strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .audit-simple-row span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+      line-height: 1.3;
+    }
+    .audit-item {
+      border-left: 3px solid #99d8cf;
+      padding-left: 10px;
+    }
+    .audit-meta {
+      display: grid;
+      gap: 4px;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .claim-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .claim-title { font-weight: 750; }
+    .claim-meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .employee-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .employee-actions .btn {
+      min-height: 32px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+    .amount { font-weight: 800; white-space: nowrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 0 9px;
+      font-size: 12px;
+      font-weight: 750;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .badge::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 99px;
+      background: currentColor;
+    }
+    .status-DRAFT { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
+    .status-SUBMITTED { background: #fffbeb; color: #a16207; border-color: #fde68a; }
+    .status-NEED_REVIEW { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .status-APPROVED { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .status-PAID { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+    .status-REJECTED { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin: 0 0 16px;
+    }
+    .month-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px 0 14px;
+      margin-top: -4px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .month-tabs .btn {
+      min-height: 36px;
+      padding: 0 12px;
+      font-size: 13px;
+      flex: 0 0 auto;
+    }
+    .month-tabs .active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .month-tabs .attention:not(.active) {
+      background: #fff1f2;
+      border-color: #fecdd3;
+      color: #be123c;
+    }
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+    label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+    input, select, textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 9px 11px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    textarea { min-height: 94px; resize: vertical; }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, .13);
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .span-2 { grid-column: span 1; }
+    .upload-box {
+      border: 1.5px dashed #b7c4c0;
+      border-radius: var(--radius);
+      background: #fbfdfc;
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .upload-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .thumb {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #fff;
+      min-height: 122px;
+      display: grid;
+      grid-template-rows: 1fr auto;
+    }
+    .thumb img {
+      width: 100%;
+      height: 126px;
+      object-fit: cover;
+      display: block;
+      background: #edf2f1;
+    }
+    .thumb footer {
+      padding: 7px 8px;
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .thumb button {
+      border: 0;
+      background: transparent;
+      color: var(--danger);
+      font-weight: 700;
+      padding: 4px;
+    }
+    .wizard {
+      max-width: 980px;
+      margin: 0 auto;
+      padding-bottom: 90px;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+    .step-pill {
+      min-height: 8px;
+      border-radius: 999px;
+      background: #dbe4e1;
+    }
+    .step-pill.active { background: var(--primary); }
+    .sticky-submit {
+      position: sticky;
+      bottom: 0;
+      z-index: 15;
+      background: rgba(246,247,248,.92);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--line);
+      padding: 12px 0 0;
+      margin-top: 18px;
+      display: flex;
+      justify-content: stretch;
+      gap: 10px;
+    }
+    .sticky-submit .btn { flex: 1; }
+    .notice {
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1e40af;
+      border-radius: var(--radius);
+      padding: 12px 13px;
+      font-size: 14px;
+    }
+    .notice.warning { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+    .notice.danger { border-color: #fecaca; background: #fff7f7; color: #991b1b; }
+    .notice.success { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .image-panel {
+      display: grid;
+      gap: 14px;
+    }
+    .receipt-large {
+      width: 100%;
+      max-height: 680px;
+      object-fit: contain;
+      background: #eef3f1;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2px;
+      font-size: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .kv:last-child { border-bottom: 0; }
+    .kv span { color: var(--muted); }
+    .timeline {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .timeline li {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 9px;
+      align-items: start;
+    }
+    .timeline i {
+      width: 10px;
+      height: 10px;
+      margin-top: 5px;
+      border-radius: 99px;
+      background: var(--primary);
+      display: block;
+    }
+    .timeline small { display: block; color: var(--muted); margin-top: 2px; }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, .58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 50;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      width: min(560px, 100%);
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 24px 80px rgba(15,23,42,.24);
+    }
+    .modal footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .empty {
+      border: 1px dashed #cbd5d2;
+      border-radius: var(--radius);
+      padding: 28px 18px;
+      text-align: center;
+      color: var(--muted);
+      background: #fbfdfc;
+    }
+    .empty strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .tabs button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      min-height: 36px;
+      padding: 0 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .tabs button.active {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .pill-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .pay-claim-btn {
+      min-height: 20px;
+      padding: 0 6px;
+      font-size: 10px;
+      font-weight: 750;
+      border-radius: 999px;
+      max-width: 100%;
+    }
+    .pay-claim-row {
+      gap: 4px;
+    }
+    .small-muted { color: var(--muted); font-size: 13px; }
+    .divider { height: 1px; background: var(--line); margin: 14px 0; }
+    .hide { display: none !important; }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(20px);
+      background: #0f172a;
+      color: #fff;
+      padding: 11px 14px;
+      border-radius: var(--radius);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+      z-index: 80;
+      max-width: min(92vw, 560px);
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 1060px) {
+      .split { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .brand { padding-bottom: 10px; }
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .toolbar { justify-content: stretch; }
+      .toolbar .btn { flex: 1; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .filters { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .span-2 { grid-column: span 1; }
+      .desktop-table { display: none; }
+      .mobile-list { display: block; }
+      table { min-width: 0; }
+      .section { padding: 14px; }
+      .steps { grid-template-columns: repeat(3, 1fr); }
+      .sticky-submit {
+        justify-content: stretch;
+      }
+      .sticky-submit .btn { flex: 1; }
+      .kv { grid-template-columns: 1fr; gap: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CL</div>
+        <div>
+          <strong>Staff Claims</strong>
+          <span>员工垫付报销</span>
+        </div>
+      </div>
+      <div class="profile-switcher" id="profileBox"></div>
+      <nav class="nav" id="nav"></nav>
+    </aside>
+    <main class="main">
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true">
+    <div class="modal" id="modal"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const STORAGE_KEY = "staffClaimsMvp.v1";
+    const AUTH_KEY = "staffClaimsMvp.loggedIn";
+    const DEMO_YEARS_VERSION = 1;
+    const DEMO_OPEN_ITEMS_VERSION = 1;
+    const statuses = ["DRAFT", "SUBMITTED", "NEED_REVIEW", "APPROVED", "PAID", "REJECTED"];
+    const statusLabels = {
+      DRAFT: "Draft / 草稿",
+      SUBMITTED: "Pending Review / 待审核",
+      NEED_REVIEW: "Need Review / 需修改",
+      APPROVED: "Approved / 已批准",
+      PAID: "Paid / 已付款",
+      REJECTED: "Rejected / 已拒绝"
+    };
+    const defaultCategories = [
+      "Office Supplies / 办公用品",
+      "Stock / Inventory / 库存",
+      "Repair & Maintenance / 维修保养",
+      "Transport / 交通",
+      "Petrol / 汽油",
+      "Courier / 快递",
+      "Food / Refreshment / 餐饮茶点",
+      "Utilities / 水电杂费",
+      "Equipment / 设备",
+      "Others / 其他"
+    ];
+    const demoUsers = [
+      { id: "u-staff-1", name: "Sales A", email: "sales.a@example.com", role: "staff", is_active: true },
+      { id: "u-staff-2", name: "Sales B", email: "sales.b@example.com", role: "staff", is_active: true },
+      { id: "u-staff-3", name: "Sales C", email: "sales.c@example.com", role: "staff", is_active: true },
+      { id: "u-staff-4", name: "Sales D", email: "sales.d@example.com", role: "staff", is_active: true },
+      { id: "u-staff-5", name: "Sales E", email: "sales.e@example.com", role: "staff", is_active: true },
+      { id: "u-acc-1", name: "Accounts", email: "accounts@example.com", role: "accountant", is_active: true },
+      { id: "u-admin-1", name: "Admin", email: "admin@example.com", role: "admin", is_active: true }
+    ];
+    const navItems = [
+      { id: "dashboard", label: "Home 首页", roles: ["staff", "accountant", "admin"] },
+      { id: "new", label: "New 新建", roles: ["staff"] },
+      { id: "review", label: "Review 审核", roles: ["accountant", "admin"] },
+      { id: "toPay", label: "Pay 付款", roles: ["accountant", "admin"] },
+      { id: "reports", label: "Report 报表", roles: ["accountant", "admin"] },
+      { id: "admin", label: "Admin 设置", roles: ["admin"] }
+    ];
+    let state = loadState();
+    migrateDemoUsers();
+    applyDemoClaimYears();
+    applyDemoOpenItemsLimit();
+    let currentUserId = localStorage.getItem("staffClaimsMvp.currentUser") || "u-staff-1";
+    let isLoggedIn = localStorage.getItem(AUTH_KEY) === "true";
+    let route = "dashboard";
+    let activeClaimId = null;
+    let detailReturnRoute = "dashboard";
+    let reportFilters = {};
+    let reportPeriodFilter = currentMonthKey();
+    let staffMonthFilter = "all";
+    let payMonthFilter = currentMonthKey();
+    let reviewStatusFilter = "SUBMITTED";
+    let reviewListVisible = false;
+    let auditFilters = { search: "", action: "", from: "", to: "" };
+    let auditPage = 1;
+    const AUDIT_PAGE_SIZE = 20;
+
+    function seedState() {
+      return {
+        users: demoUsers,
+        categories: defaultCategories.map((name, index) => ({ id: "cat-" + (index + 1), name, is_active: true, sort_order: index + 1 })),
+        claims: [],
+        drafts: {},
+        sequence: {},
+        auditLogs: []
+      };
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return seedState();
+        const parsed = JSON.parse(raw);
+        return { ...seedState(), ...parsed };
+      } catch (error) {
+        return seedState();
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function migrateDemoUsers() {
+      let changed = false;
+      const oldDemoNames = ["Alez", "Shawn"];
+      demoUsers.forEach(demoUser => {
+        const existing = state.users.find(user => user.id === demoUser.id);
+        if (existing) {
+          if (oldDemoNames.includes(existing.name)) {
+            existing.name = demoUser.name;
+            changed = true;
+          }
+          if (!existing.email) {
+            existing.email = demoUser.email;
+            changed = true;
+          }
+          if (!existing.role) {
+            existing.role = demoUser.role;
+            changed = true;
+          }
+          if (typeof existing.is_active !== "boolean") {
+            existing.is_active = true;
+            changed = true;
+          }
+        } else {
+          state.users.push({ ...demoUser });
+          changed = true;
+        }
+      });
+      if (changed) saveState();
+    }
+
+    function currentUser() {
+      return state.users.find(user => user.id === currentUserId) || state.users[0];
+    }
+
+    function canReview() {
+      return ["accountant", "admin"].includes(currentUser().role);
+    }
+
+    function money(value) {
+      const amount = Number(value || 0);
+      return "RM " + amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function todayISO() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function displayDate(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    }
+
+    function displayDateTime(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    }
+
+    function userName(id) {
+      return (state.users.find(user => user.id === id) || {}).name || "Unknown";
+    }
+
+    function roleRank(role) {
+      return { staff: 1, accountant: 2, admin: 3 }[role] || 4;
+    }
+
+    function sortedUsers(users = state.users) {
+      return [...users].sort((a, b) => roleRank(a.role) - roleRank(b.role) || a.name.localeCompare(b.name));
+    }
+
+    function categoryName(id) {
+      return (state.categories.find(category => category.id === id) || {}).name || "-";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    function toast(message) {
+      const node = document.getElementById("toast");
+      node.textContent = message;
+      node.classList.add("show");
+      window.clearTimeout(toast.timer);
+      toast.timer = window.setTimeout(() => node.classList.remove("show"), 2400);
+    }
+
+    function setRoute(nextRoute, claimId) {
+      if (nextRoute === "detail" && route !== "detail") {
+        detailReturnRoute = route;
+      }
+      route = nextRoute;
+      activeClaimId = claimId || null;
+      render();
+    }
+
+    function addAudit(claimId, action, metadata = {}, actorId = currentUser().id) {
+      state.auditLogs.unshift({
+        id: crypto.randomUUID(),
+        claim_id: claimId,
+        actor_id: actorId,
+        action,
+        metadata,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    function generateClaimNumber() {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const key = yy + mm + dd;
+      state.sequence[key] = (state.sequence[key] || 0) + 1;
+      return `CLM-${key}-${String(state.sequence[key]).padStart(4, "0")}`;
+    }
+
+    function demoDateBundle(index) {
+      const years = [2026, 2025, 2024];
+      const year = years[(index - 1) % years.length];
+      const month = (index * 5) % 12;
+      const day = ((index * 7) % 24) + 1;
+      const submittedAt = new Date(Date.UTC(year, month, day, 9 + (index % 8), index % 60));
+      const purchaseDate = new Date(submittedAt.getTime() - 24 * 60 * 60 * 1000);
+      const approvedAt = new Date(submittedAt.getTime() + 2 * 60 * 60 * 1000);
+      const paidAt = new Date(submittedAt.getTime() + 26 * 60 * 60 * 1000);
+      const key = `${String(year).slice(-2)}${String(month + 1).padStart(2, "0")}${String(day).padStart(2, "0")}`;
+      return { year, key, purchaseDate, submittedAt, approvedAt, paidAt };
+    }
+
+    function demoClaimIndex(claim, fallbackIndex) {
+      const match = String(claim.remarks || "").match(/Demo claim\s+(\d+)/i);
+      return match ? Number(match[1]) : fallbackIndex + 1;
+    }
+
+    function applyDemoClaimYears(force = false) {
+      if (!force && state.demo_years_version === DEMO_YEARS_VERSION) return;
+      let changed = false;
+      state.claims.forEach((claim, index) => {
+        if (!String(claim.remarks || "").startsWith("Demo claim")) return;
+        const demoIndex = demoClaimIndex(claim, index);
+        const dates = demoDateBundle(demoIndex);
+        const oldClaimNumber = claim.claim_number;
+        claim.claim_number = `CLM-${dates.key}-${String(index + 1).padStart(4, "0")}`;
+        claim.purchase_date = dates.purchaseDate.toISOString().slice(0, 10);
+        claim.submitted_at = dates.submittedAt.toISOString();
+        claim.created_at = dates.submittedAt.toISOString();
+        if (["APPROVED", "PAID"].includes(claim.status)) {
+          claim.approved_at = dates.approvedAt.toISOString();
+        }
+        if (claim.status === "PAID") {
+          claim.paid_at = dates.paidAt.toISOString();
+          claim.payment_date = dates.paidAt.toISOString().slice(0, 10);
+        }
+        claim.review_notes = (claim.review_notes || []).map(note => ({
+          ...note,
+          created_at: new Date(dates.submittedAt.getTime() + 60 * 60 * 1000).toISOString()
+        }));
+        claim.updated_at = (claim.status === "PAID" ? dates.paidAt : ["APPROVED", "PAID"].includes(claim.status) ? dates.approvedAt : dates.submittedAt).toISOString();
+        state.auditLogs.forEach(log => {
+          if (log.claim_id !== claim.id) return;
+          if (log.action.includes("submitted")) log.created_at = dates.submittedAt.toISOString();
+          else if (log.action.includes("approved")) log.created_at = dates.approvedAt.toISOString();
+          else if (log.action.includes("paid")) log.created_at = dates.paidAt.toISOString();
+          else log.created_at = new Date(dates.submittedAt.getTime() + 60 * 60 * 1000).toISOString();
+          if (log.metadata?.claim_number === oldClaimNumber) log.metadata.claim_number = claim.claim_number;
+        });
+        changed = true;
+      });
+      state.demo_years_version = DEMO_YEARS_VERSION;
+      if (changed || force) saveState();
+    }
+
+    function applyDemoOpenItemsLimit(force = false) {
+      if (!force && state.demo_open_items_version === DEMO_OPEN_ITEMS_VERSION) return;
+      const demoClaims = state.claims
+        .filter(claim => String(claim.remarks || "").startsWith("Demo claim"))
+        .sort((a, b) => demoClaimIndex(a, 0) - demoClaimIndex(b, 0));
+      if (!demoClaims.length) {
+        state.demo_open_items_version = DEMO_OPEN_ITEMS_VERSION;
+        saveState();
+        return;
+      }
+      const reviewer = state.users.find(user => ["accountant", "admin"].includes(user.role) && user.is_active) || state.users.find(user => ["accountant", "admin"].includes(user.role)) || state.users[0];
+      const openPlan = ["SUBMITTED", "SUBMITTED", "NEED_REVIEW", "APPROVED", "APPROVED"];
+      const demoIds = new Set(demoClaims.map(claim => claim.id));
+      const rebuiltLogs = [];
+      demoClaims.forEach((claim, index) => {
+        const demoIndex = demoClaimIndex(claim, index);
+        const dates = demoDateBundle(demoIndex);
+        const status = openPlan[index] || "PAID";
+        const amount = Number(claim.approved_amount || claim.claim_amount || 0);
+        Object.assign(claim, {
+          status,
+          duplicate_flag: index === 0 || index === 2,
+          duplicate_message: index === 0 || index === 2 ? "Demo possible duplicate / 测试重复提示" : "",
+          duplicate_override_reason: "",
+          approved_by: ["APPROVED", "PAID"].includes(status) ? reviewer.id : null,
+          approved_at: ["APPROVED", "PAID"].includes(status) ? dates.approvedAt.toISOString() : null,
+          approved_amount: ["APPROVED", "PAID"].includes(status) ? amount : null,
+          rejected_by: null,
+          rejected_at: null,
+          rejection_reason: "",
+          paid_by: status === "PAID" ? reviewer.id : null,
+          paid_at: status === "PAID" ? dates.paidAt.toISOString() : null,
+          payment_date: status === "PAID" ? dates.paidAt.toISOString().slice(0, 10) : "",
+          payment_reference: status === "PAID" ? `DEMO-PAY-${String(demoIndex).padStart(4, "0")}` : "",
+          paid_amount: status === "PAID" ? amount : null,
+          payment_note: "",
+          review_notes: status === "NEED_REVIEW" ? [{
+            id: crypto.randomUUID(),
+            created_by: reviewer.id,
+            note_type: "NEED_REVIEW",
+            message: "Demo review note: please confirm receipt details.",
+            created_at: new Date(dates.submittedAt.getTime() + 60 * 60 * 1000).toISOString()
+          }] : [],
+          updated_at: (status === "PAID" ? dates.paidAt : ["APPROVED", "PAID"].includes(status) ? dates.approvedAt : dates.submittedAt).toISOString()
+        });
+        rebuiltLogs.push({
+          id: crypto.randomUUID(),
+          claim_id: claim.id,
+          actor_id: claim.claimant_id,
+          action: "Claim submitted / 已提交报销",
+          metadata: { claim_number: claim.claim_number },
+          created_at: dates.submittedAt.toISOString()
+        });
+        if (status === "NEED_REVIEW") rebuiltLogs.push({
+          id: crypto.randomUUID(),
+          claim_id: claim.id,
+          actor_id: reviewer.id,
+          action: "Need review requested / 要求员工修改",
+          metadata: { message: "Demo review note" },
+          created_at: new Date(dates.submittedAt.getTime() + 60 * 60 * 1000).toISOString()
+        });
+        if (["APPROVED", "PAID"].includes(status)) rebuiltLogs.push({
+          id: crypto.randomUUID(),
+          claim_id: claim.id,
+          actor_id: reviewer.id,
+          action: "Claim approved / 已批准",
+          metadata: { approved_amount: amount },
+          created_at: dates.approvedAt.toISOString()
+        });
+        if (status === "PAID") rebuiltLogs.push({
+          id: crypto.randomUUID(),
+          claim_id: claim.id,
+          actor_id: reviewer.id,
+          action: "Claim marked paid / 已标记付款",
+          metadata: { payment_reference: claim.payment_reference, paid_amount: amount },
+          created_at: dates.paidAt.toISOString()
+        });
+      });
+      state.auditLogs = [...rebuiltLogs, ...state.auditLogs.filter(log => !demoIds.has(log.claim_id))]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      state.demo_open_items_version = DEMO_OPEN_ITEMS_VERSION;
+      saveState();
+    }
+
+    function demoImageData(label, tone = "#0f766e") {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480" viewBox="0 0 360 480">
+        <rect width="360" height="480" fill="#f8fafc"/>
+        <rect x="36" y="36" width="288" height="408" rx="10" fill="#ffffff" stroke="#d6dedb"/>
+        <text x="180" y="92" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" fill="${tone}">${label}</text>
+        <line x1="72" y1="140" x2="288" y2="140" stroke="#cbd5d1" stroke-width="4"/>
+        <line x1="72" y1="190" x2="288" y2="190" stroke="#cbd5d1" stroke-width="4"/>
+        <line x1="72" y1="240" x2="288" y2="240" stroke="#cbd5d1" stroke-width="4"/>
+        <text x="180" y="330" text-anchor="middle" font-family="Arial" font-size="42" font-weight="700" fill="#111827">RM</text>
+      </svg>`;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    }
+
+    function demoAttachment(type, index) {
+      return {
+        id: crypto.randomUUID(),
+        attachment_type: type,
+        original_filename: `${type === "RECEIPT" ? "receipt" : "proof"}-${String(index).padStart(3, "0")}.svg`,
+        file_size: 1200,
+        mime_type: "image/svg+xml",
+        file_hash: `demo-${type.toLowerCase()}-${Date.now()}-${index}`,
+        data_url: demoImageData(type === "RECEIPT" ? "DEMO RECEIPT" : "DEMO PROOF", type === "RECEIPT" ? "#0f766e" : "#2563eb"),
+        created_at: new Date().toISOString()
+      };
+    }
+
+    function addDemoClaims(count = 100) {
+      const staffUsers = state.users.filter(user => user.role === "staff" && user.is_active);
+      const reviewers = state.users.filter(user => ["accountant", "admin"].includes(user.role) && user.is_active);
+      const categories = state.categories.filter(category => category.is_active);
+      if (!staffUsers.length || !categories.length) {
+        toast("Need at least one staff and category / 需要至少一个员工和分类");
+        return;
+      }
+      const merchants = ["MR.DIY", "POPULAR", "SHELL", "99 SPEEDMART", "J&T EXPRESS", "TNB", "LOTUS'S", "HARDWARE PRO"];
+      const statusesToMix = ["SUBMITTED", "APPROVED", "PAID", "NEED_REVIEW"];
+      const createdClaims = [];
+      for (let index = 1; index <= count; index++) {
+        const claimant = staffUsers[index % staffUsers.length];
+        const reviewer = reviewers[index % Math.max(reviewers.length, 1)] || currentUser();
+        const category = categories[index % categories.length];
+        const status = statusesToMix[index % statusesToMix.length];
+        const amount = Number((18 + ((index * 7.35) % 420)).toFixed(2));
+        const dates = demoDateBundle(index);
+        const purchaseDate = dates.purchaseDate;
+        const submittedAt = dates.submittedAt;
+        const approvedAt = ["APPROVED", "PAID"].includes(status) ? dates.approvedAt : null;
+        const paidAt = status === "PAID" ? dates.paidAt : null;
+        const claim = {
+          id: crypto.randomUUID(),
+          claim_number: generateClaimNumber(),
+          claimant_id: claimant.id,
+          merchant: merchants[index % merchants.length],
+          receipt_number: `DEMO-${String(index).padStart(4, "0")}`,
+          purchase_date: purchaseDate.toISOString().slice(0, 10),
+          currency: "MYR",
+          receipt_subtotal: amount,
+          receipt_tax: 0,
+          receipt_total: amount,
+          claim_amount: amount,
+          category_id: category.id,
+          purpose: "",
+          remarks: `Demo claim ${index}`,
+          status,
+          duplicate_flag: index % 17 === 0,
+          duplicate_claim_id: null,
+          duplicate_message: index % 17 === 0 ? "Demo possible duplicate / 测试重复提示" : "",
+          duplicate_override_reason: "",
+          ai_status: "SCANNED",
+          ai_flags: { purchase_date: "detected", receipt_total: "detected" },
+          attachments: [demoAttachment("RECEIPT", index), demoAttachment("PURCHASE_PROOF", index)],
+          submitted_at: submittedAt.toISOString(),
+          approved_by: approvedAt ? reviewer.id : null,
+          approved_at: approvedAt ? approvedAt.toISOString() : null,
+          approved_amount: approvedAt ? amount : null,
+          rejected_by: null,
+          rejected_at: null,
+          rejection_reason: "",
+          paid_by: paidAt ? reviewer.id : null,
+          paid_at: paidAt ? paidAt.toISOString() : null,
+          payment_date: paidAt ? paidAt.toISOString().slice(0, 10) : "",
+          payment_reference: paidAt ? `DEMO-PAY-${String(index).padStart(4, "0")}` : "",
+          paid_amount: paidAt ? amount : null,
+          payment_note: "",
+          review_notes: status === "NEED_REVIEW" ? [{
+            id: crypto.randomUUID(),
+            created_by: reviewer.id,
+            note_type: "NEED_REVIEW",
+            message: "Demo review note: please confirm receipt details.",
+            created_at: new Date(submittedAt.getTime() + 60 * 60 * 1000).toISOString()
+          }] : [],
+          created_at: submittedAt.toISOString(),
+          updated_at: (paidAt || approvedAt || submittedAt).toISOString()
+        };
+        createdClaims.push(claim);
+        addAudit(claim.id, "Claim submitted / 已提交报销", { claim_number: claim.claim_number }, claimant.id);
+        if (status === "NEED_REVIEW") addAudit(claim.id, "Need review requested / 要求员工修改", { message: "Demo review note" }, reviewer.id);
+        if (approvedAt) addAudit(claim.id, "Claim approved / 已批准", { approved_amount: amount }, reviewer.id);
+        if (paidAt) addAudit(claim.id, "Claim marked paid / 已标记付款", { payment_reference: claim.payment_reference, paid_amount: amount }, reviewer.id);
+      }
+      state.claims.unshift(...createdClaims);
+      applyDemoClaimYears(true);
+      applyDemoOpenItemsLimit(true);
+      auditPage = 1;
+      saveState();
+      toast(`Added ${count} demo claims / 已加入 ${count} 张测试报销单`);
+      renderAdmin();
+    }
+
+    async function fileToAttachment(file, type) {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+      const hash = Array.from(new Uint8Array(hashBuffer)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      return {
+        id: crypto.randomUUID(),
+        attachment_type: type,
+        original_filename: file.name,
+        file_size: file.size,
+        mime_type: file.type || "application/octet-stream",
+        file_hash: hash,
+        data_url: dataUrl,
+        created_at: new Date().toISOString()
+      };
+    }
+
+    function getDraft() {
+      const key = currentUser().id;
+      if (!state.drafts[key]) {
+        state.drafts[key] = {
+          merchant: "",
+          receipt_number: "",
+          purchase_date: todayISO(),
+          currency: "MYR",
+          receipt_subtotal: "",
+          receipt_tax: "",
+          receipt_total: "",
+          claim_amount: "",
+          category_id: "",
+          purpose: "",
+          remarks: "",
+          receipt: null,
+          proofs: [],
+          ai_status: "NOT_SCANNED",
+          ai_flags: {},
+          duplicate: null,
+          updated_at: new Date().toISOString()
+        };
+      }
+      return state.drafts[key];
+    }
+
+    function updateDraft(patch) {
+      const draft = getDraft();
+      Object.assign(draft, patch, { updated_at: new Date().toISOString() });
+      if (patch.receipt_total !== undefined && (draft.claim_amount === "" || draft.claim_amount === null)) {
+        draft.claim_amount = draft.receipt_total;
+      }
+      draft.duplicate = detectDuplicateForDraft(draft);
+      saveState();
+    }
+
+    function clearDraft() {
+      delete state.drafts[currentUser().id];
+      saveState();
+    }
+
+    function detectDuplicateForDraft(draft, ignoreClaimId = null) {
+      const receiptHash = draft.receipt?.file_hash;
+      const exact = state.claims.find(claim => {
+        if (claim.id === ignoreClaimId) return false;
+        return claim.attachments.some(file => file.attachment_type === "RECEIPT" && receiptHash && file.file_hash === receiptHash);
+      });
+      if (exact) return { type: "EXACT_IMAGE", claim_id: exact.id, message: "Exact same receipt image already exists / 相同收据图片已存在" };
+      const fuzzy = state.claims.find(claim => {
+        if (claim.id === ignoreClaimId) return false;
+        const sameMerchant = claim.merchant && draft.merchant && claim.merchant.trim().toLowerCase() === draft.merchant.trim().toLowerCase();
+        const sameDate = claim.purchase_date && draft.purchase_date && claim.purchase_date === draft.purchase_date;
+        const sameAmount = Number(claim.receipt_total || 0).toFixed(2) === Number(draft.receipt_total || 0).toFixed(2);
+        const receiptClose = claim.receipt_number && draft.receipt_number && claim.receipt_number.trim().toLowerCase() === draft.receipt_number.trim().toLowerCase();
+        return sameMerchant && sameDate && sameAmount && (receiptClose || !draft.receipt_number);
+      });
+      if (fuzzy) return { type: "FUZZY", claim_id: fuzzy.id, message: "Possible duplicate receipt details / 资料相似，可能重复" };
+      return null;
+    }
+
+    function simulateAiScan() {
+      const draft = getDraft();
+      const samples = [
+        { merchant: "MR.DIY", receipt_number: "A23891", subtotal: 46.80, tax: 2.81, total: 49.61 },
+        { merchant: "POPULAR BOOKSTORE", receipt_number: "PB-77219", subtotal: 86.00, tax: 0, total: 86.00 },
+        { merchant: "SHELL", receipt_number: "SH-11907", subtotal: 70.00, tax: 0, total: 70.00 }
+      ];
+      const sample = samples[Math.floor(Math.random() * samples.length)];
+      updateDraft({
+        merchant: sample.merchant,
+        receipt_number: sample.receipt_number,
+        purchase_date: todayISO(),
+        receipt_subtotal: sample.subtotal,
+        receipt_tax: sample.tax,
+        receipt_total: sample.total,
+        claim_amount: sample.total,
+        currency: "MYR",
+        ai_status: "SCANNED",
+        ai_flags: {
+          merchant: "detected",
+          receipt_number: "check",
+          purchase_date: "detected",
+          receipt_total: "detected"
+        }
+      });
+      toast("Receipt scanned. Please verify / 已扫描，请核对");
+      renderNewClaim();
+    }
+
+    function claimVisibleToUser(claim) {
+      const user = currentUser();
+      return canReview() || claim.claimant_id === user.id;
+    }
+
+    function visibleClaims() {
+      return state.claims.filter(claimVisibleToUser);
+    }
+
+    function validateDraft(draft) {
+      const errors = [];
+      if (!draft.receipt) errors.push("Receipt photo is required / 必须上传收据");
+      if (!draft.purchase_date) errors.push("Purchase date is required / 必须填写日期");
+      if (!Number(draft.claim_amount)) errors.push("Claim amount is required / 必须填写报销金额");
+      if (Number(draft.receipt_total) && Number(draft.claim_amount) > Number(draft.receipt_total)) errors.push("Claim amount cannot exceed receipt total / 报销金额不能超过收据总额");
+      if (!draft.category_id) errors.push("Category is required / 必须选择分类");
+      if (!draft.proofs.length) errors.push("At least one purchase proof photo is required / 至少上传一张实物照片");
+      return errors;
+    }
+
+    function submitDraft() {
+      const draft = getDraft();
+      const errors = validateDraft(draft);
+      if (errors.length) {
+        toast(errors[0]);
+        return;
+      }
+      const duplicate = detectDuplicateForDraft(draft);
+      const claim = {
+        id: crypto.randomUUID(),
+        claim_number: generateClaimNumber(),
+        claimant_id: currentUser().id,
+        merchant: draft.merchant.trim(),
+        receipt_number: draft.receipt_number.trim(),
+        purchase_date: draft.purchase_date,
+        currency: draft.currency || "MYR",
+        receipt_subtotal: Number(draft.receipt_subtotal || 0),
+        receipt_tax: Number(draft.receipt_tax || 0),
+        receipt_total: Number(draft.receipt_total || draft.claim_amount || 0),
+        claim_amount: Number(draft.claim_amount || 0),
+        category_id: draft.category_id,
+        purpose: draft.purpose.trim(),
+        remarks: draft.remarks.trim(),
+        status: "SUBMITTED",
+        duplicate_flag: Boolean(duplicate),
+        duplicate_claim_id: duplicate?.claim_id || null,
+        duplicate_message: duplicate?.message || "",
+        duplicate_override_reason: "",
+        ai_status: draft.ai_status || "NOT_SCANNED",
+        ai_flags: draft.ai_flags || {},
+        attachments: [draft.receipt, ...draft.proofs],
+        submitted_at: new Date().toISOString(),
+        approved_by: null,
+        approved_at: null,
+        approved_amount: null,
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: "",
+        paid_by: null,
+        paid_at: null,
+        payment_date: "",
+        payment_reference: "",
+        paid_amount: null,
+        payment_note: "",
+        review_notes: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      state.claims.unshift(claim);
+      addAudit(claim.id, "Claim submitted / 已提交报销", { claim_number: claim.claim_number });
+      if (claim.duplicate_flag) addAudit(claim.id, "Duplicate flagged / 系统标记可能重复", { duplicate_claim_id: claim.duplicate_claim_id, message: claim.duplicate_message });
+      clearDraft();
+      saveState();
+      toast(`${claim.claim_number} submitted / 已提交`);
+      setRoute("detail", claim.id);
+    }
+
+    function updateClaim(id, patch, auditAction, metadata = {}) {
+      const index = state.claims.findIndex(claim => claim.id === id);
+      if (index < 0) return;
+      state.claims[index] = { ...state.claims[index], ...patch, updated_at: new Date().toISOString() };
+      if (auditAction) addAudit(id, auditAction, metadata);
+      saveState();
+      render();
+    }
+
+    function openModal(html, onBind) {
+      const backdrop = document.getElementById("modalBackdrop");
+      const modal = document.getElementById("modal");
+      modal.innerHTML = html;
+      backdrop.classList.add("open");
+      modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", closeModal));
+      if (onBind) onBind(modal);
+    }
+
+    function closeModal() {
+      document.getElementById("modalBackdrop").classList.remove("open");
+      document.getElementById("modal").innerHTML = "";
+    }
+
+    function approveClaim(claim) {
+      const duplicateBlock = claim.duplicate_flag && !claim.duplicate_override_reason
+        ? `<div class="field"><label>Duplicate Override Reason / 重复票据批准原因</label><textarea id="overrideReason" placeholder="Example: Two separate purchases with same amount."></textarea></div>`
+        : "";
+      openModal(`
+        <h2>Approve Claim? / 确认批准？</h2>
+        <p class="small-muted">${escapeHtml(userName(claim.claimant_id))} · ${escapeHtml(claim.merchant)} · ${money(claim.claim_amount)}</p>
+        ${claim.duplicate_flag ? `<div class="notice warning">Possible duplicate: ${escapeHtml(claim.duplicate_message)}</div>` : ""}
+        <div class="field"><label>Approved Amount / 批准金额</label><input id="approvedAmount" type="number" step="0.01" value="${claim.claim_amount}"></div>
+        ${duplicateBlock}
+        <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="confirmApprove">Approve / 批准</button></footer>
+      `, modal => {
+        modal.querySelector("#confirmApprove").addEventListener("click", () => {
+          const approvedAmount = Number(modal.querySelector("#approvedAmount").value || 0);
+          const override = modal.querySelector("#overrideReason")?.value.trim() || claim.duplicate_override_reason;
+          if (!approvedAmount) return toast("Approved amount is required / 必须填写批准金额");
+          if (claim.duplicate_flag && !override) return toast("Duplicate override reason required / 必须填写重复批准原因");
+          updateClaim(claim.id, {
+            status: "APPROVED",
+            approved_by: currentUser().id,
+            approved_at: new Date().toISOString(),
+            approved_amount: approvedAmount,
+            duplicate_override_reason: override
+          }, "Claim approved / 已批准", { approved_amount: approvedAmount, duplicate_override_reason: override });
+          closeModal();
+          toast("Claim approved / 已批准");
+        });
+      });
+    }
+
+    function needReviewClaim(claim) {
+      openModal(`
+        <h2>Need Review / 退回修改</h2>
+        <div class="field"><label>Reason / 原因</label><select id="reviewReason">
+          <option>Receipt unclear / 收据不清楚</option>
+          <option>Wrong amount / 金额不正确</option>
+          <option>Missing purchase photo / 缺少实物照片</option>
+          <option>Please explain purchase purpose / 请说明用途</option>
+          <option>Other / 其他</option>
+        </select></div>
+        <div class="field"><label>Message / 信息</label><textarea id="reviewMessage" placeholder="Message visible to staff"></textarea></div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn warning" id="confirmReview">Send / 发送</button></footer>
+      `, modal => {
+        modal.querySelector("#confirmReview").addEventListener("click", () => {
+          const reason = modal.querySelector("#reviewReason").value;
+          const message = modal.querySelector("#reviewMessage").value.trim();
+          if (!message) return toast("Message is required / 必须填写信息");
+          const note = { id: crypto.randomUUID(), created_by: currentUser().id, note_type: "NEED_REVIEW", message: `${reason}: ${message}`, created_at: new Date().toISOString() };
+          updateClaim(claim.id, { status: "NEED_REVIEW", review_notes: [note, ...claim.review_notes] }, "Need review requested / 要求员工修改", { message: note.message });
+          closeModal();
+          toast("Sent back for review / 已退回修改");
+        });
+      });
+    }
+
+    function rejectClaim(claim) {
+      openModal(`
+        <h2>Reject Claim / 拒绝报销</h2>
+        <div class="field"><label>Reason / 原因</label><textarea id="rejectReason"></textarea></div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn danger" id="confirmReject">Reject / 拒绝</button></footer>
+      `, modal => {
+        modal.querySelector("#confirmReject").addEventListener("click", () => {
+          const reason = modal.querySelector("#rejectReason").value.trim();
+          if (!reason) return toast("Reason is required / 必须填写原因");
+          updateClaim(claim.id, {
+            status: "REJECTED",
+            rejected_by: currentUser().id,
+            rejected_at: new Date().toISOString(),
+            rejection_reason: reason
+          }, "Claim rejected / 已拒绝", { reason });
+          closeModal();
+          toast("Claim rejected / 已拒绝");
+        });
+      });
+    }
+
+    function editClaim(claim) {
+      const categoryOptions = state.categories
+        .filter(category => category.is_active || category.id === claim.category_id)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map(category => `<option value="${category.id}" ${claim.category_id === category.id ? "selected" : ""}>${escapeHtml(category.name)}</option>`)
+        .join("");
+      const approvedAmountField = claim.status === "APPROVED"
+        ? `<div class="field"><label>Approved Amount / 批准金额</label><input id="editApprovedAmount" type="number" step="0.01" value="${claim.approved_amount || claim.claim_amount}"></div>`
+        : "";
+      openModal(`
+        <h2>Edit Claim / 编辑报销</h2>
+        <p class="small-muted">${escapeHtml(claim.claim_number)} · ${escapeHtml(userName(claim.claimant_id))}</p>
+        <div class="form-grid">
+          <div class="field"><label>Purchase Date / 购买日期</label><input id="editPurchaseDate" type="date" value="${claim.purchase_date || todayISO()}"></div>
+          <div class="field"><label>Claim Amount / 报销金额</label><input id="editClaimAmount" type="number" step="0.01" value="${claim.claim_amount}"></div>
+          ${approvedAmountField}
+          <div class="field"><label>Category / 分类</label><select id="editCategory">${categoryOptions}</select></div>
+          <div class="field span-2"><label>Remarks / 备注</label><textarea id="editRemarks">${escapeHtml(claim.remarks || "")}</textarea></div>
+        </div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="confirmEdit">Save / 保存</button></footer>
+      `, modal => {
+        modal.querySelector("#confirmEdit").addEventListener("click", () => {
+          const purchaseDate = modal.querySelector("#editPurchaseDate").value;
+          const claimAmount = Number(modal.querySelector("#editClaimAmount").value || 0);
+          const approvedAmountInput = modal.querySelector("#editApprovedAmount");
+          const approvedAmount = approvedAmountInput ? Number(approvedAmountInput.value || 0) : claim.approved_amount;
+          const categoryId = modal.querySelector("#editCategory").value;
+          const remarks = modal.querySelector("#editRemarks").value.trim();
+          if (!purchaseDate) return toast("Purchase date is required / 必须填写购买日期");
+          if (!claimAmount) return toast("Claim amount is required / 必须填写报销金额");
+          if (approvedAmountInput && !approvedAmount) return toast("Approved amount is required / 必须填写批准金额");
+          if (!categoryId) return toast("Category is required / 必须选择分类");
+          updateClaim(claim.id, {
+            purchase_date: purchaseDate,
+            claim_amount: claimAmount,
+            approved_amount: approvedAmount,
+            category_id: categoryId,
+            remarks
+          }, "Claim edited / 已编辑报销", {
+            old_claim_amount: claim.claim_amount,
+            new_claim_amount: claimAmount,
+            old_category_id: claim.category_id,
+            new_category_id: categoryId
+          });
+          closeModal();
+          toast("Claim updated / 已更新");
+        });
+      });
+    }
+
+    function markPaid(claim) {
+      openModal(`
+        <h2>Mark as Paid / 标记已付款</h2>
+        <p class="small-muted">${escapeHtml(claim.claim_number)} · ${escapeHtml(userName(claim.claimant_id))} · ${money(claim.approved_amount || claim.claim_amount)}</p>
+        <div class="form-grid">
+          <div class="field"><label>Payment Date / 付款日期</label><input id="paymentDate" type="date" value="${todayISO()}"></div>
+          <div class="field"><label>Payment Reference / 付款参考</label><input id="paymentRef" placeholder="MBB-928183"></div>
+          <div class="field"><label>Paid Amount / 已付金额</label><input id="paidAmount" type="number" step="0.01" value="${claim.approved_amount || claim.claim_amount}"></div>
+          <div class="field"><label>Payment Note / 备注</label><input id="paymentNote"></div>
+        </div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="confirmPaid">Mark Paid / 标记已付款</button></footer>
+      `, modal => {
+        modal.querySelector("#confirmPaid").addEventListener("click", () => {
+          const paymentDate = modal.querySelector("#paymentDate").value;
+          const paymentReference = modal.querySelector("#paymentRef").value.trim();
+          const paidAmount = Number(modal.querySelector("#paidAmount").value || 0);
+          const paymentNote = modal.querySelector("#paymentNote").value.trim();
+          if (!paymentDate || !paymentReference || !paidAmount) return toast("Payment date, reference and amount are required / 请填写付款日期、参考和金额");
+          updateClaim(claim.id, {
+            status: "PAID",
+            paid_by: currentUser().id,
+            paid_at: new Date().toISOString(),
+            payment_date: paymentDate,
+            payment_reference: paymentReference,
+            paid_amount: paidAmount,
+            payment_note: paymentNote
+          }, "Claim marked paid / 已标记付款", { payment_date: paymentDate, payment_reference: paymentReference, paid_amount: paidAmount });
+          closeModal();
+          toast("Claim paid / 已付款");
+          setRoute(detailReturnRoute || "toPay");
+        });
+      });
+    }
+
+    function resubmitNeedReview(claim) {
+      const draft = {
+        merchant: claim.merchant,
+        receipt_number: claim.receipt_number,
+        purchase_date: claim.purchase_date,
+        currency: claim.currency,
+        receipt_subtotal: claim.receipt_subtotal,
+        receipt_tax: claim.receipt_tax,
+        receipt_total: claim.receipt_total,
+        claim_amount: claim.claim_amount,
+        category_id: claim.category_id,
+        purpose: claim.purpose,
+        remarks: claim.remarks,
+        receipt: claim.attachments.find(file => file.attachment_type === "RECEIPT") || null,
+        proofs: claim.attachments.filter(file => file.attachment_type === "PURCHASE_PROOF"),
+        ai_status: claim.ai_status,
+        ai_flags: claim.ai_flags || {},
+        duplicate: null,
+        editing_claim_id: claim.id
+      };
+      state.drafts[currentUser().id] = draft;
+      saveState();
+      setRoute("new");
+    }
+
+    function saveResubmission(originalClaimId) {
+      const draft = getDraft();
+      const errors = validateDraft(draft);
+      if (errors.length) return toast(errors[0]);
+      const duplicate = detectDuplicateForDraft(draft, originalClaimId);
+      const claim = state.claims.find(item => item.id === originalClaimId);
+      if (!claim) return;
+      Object.assign(claim, {
+        merchant: draft.merchant.trim(),
+        receipt_number: draft.receipt_number.trim(),
+        purchase_date: draft.purchase_date,
+        currency: draft.currency || "MYR",
+        receipt_subtotal: Number(draft.receipt_subtotal || 0),
+        receipt_tax: Number(draft.receipt_tax || 0),
+        receipt_total: Number(draft.receipt_total || draft.claim_amount || 0),
+        claim_amount: Number(draft.claim_amount || 0),
+        category_id: draft.category_id,
+        purpose: draft.purpose.trim(),
+        remarks: draft.remarks.trim(),
+        status: "SUBMITTED",
+        duplicate_flag: Boolean(duplicate),
+        duplicate_claim_id: duplicate?.claim_id || null,
+        duplicate_message: duplicate?.message || "",
+        ai_status: draft.ai_status || "NOT_SCANNED",
+        ai_flags: draft.ai_flags || {},
+        attachments: [draft.receipt, ...draft.proofs],
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      addAudit(claim.id, "Claim corrected and resubmitted / 已修改并重新提交", {});
+      clearDraft();
+      saveState();
+      toast("Claim resubmitted / 已重新提交");
+      setRoute("detail", claim.id);
+    }
+
+    function renderShell() {
+      const profileBox = document.getElementById("profileBox");
+      const nav = document.getElementById("nav");
+      document.querySelector(".main").classList.toggle("login-main", !isLoggedIn);
+      if (!isLoggedIn) {
+        profileBox.innerHTML = `<label>Demo Login / 模拟登录</label><div class="session-role">Choose one account to enter / 选择账号进入</div>`;
+        nav.innerHTML = "";
+        return;
+      }
+
+      const userRole = currentUser().role;
+      profileBox.innerHTML = `
+        <label>Logged In / 已登录</label>
+        <div>
+          <div class="session-name">${escapeHtml(currentUser().name)}</div>
+          <div class="session-role">${escapeHtml(currentUser().role)} · ${canReview() ? "Can view all claims / 可看全部" : "Own claims only / 只看自己"}</div>
+        </div>
+        <button class="btn" data-logout>Logout / 登出</button>
+      `;
+      profileBox.querySelector("[data-logout]").addEventListener("click", () => {
+        isLoggedIn = false;
+        localStorage.setItem(AUTH_KEY, "false");
+        route = "dashboard";
+        activeClaimId = null;
+        render();
+      });
+      nav.innerHTML = navItems.filter(item => item.roles.includes(userRole)).map(item =>
+        `<button class="${route === item.id ? "active" : ""}" data-route="${item.id}"><span class="dot"></span>${item.label}</button>`
+      ).join("");
+      nav.querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+        if (button.dataset.route === "review") {
+          reviewStatusFilter = "SUBMITTED";
+          reviewListVisible = false;
+        }
+        if (button.dataset.route === "toPay") payMonthFilter = currentMonthKey();
+        if (button.dataset.route === "reports") reportPeriodFilter = currentMonthKey();
+        setRoute(button.dataset.route);
+      }));
+    }
+
+    function pageHeader(title, subtitle, actions = "") {
+      return `<div class="topbar">
+        <div>${subtitle ? `<p class="eyebrow">${subtitle}</p>` : ""}<h1>${title}</h1></div>
+        <div class="toolbar">${actions}</div>
+      </div>`;
+    }
+
+    function statusBadge(status) {
+      return `<span class="badge status-${status}">${statusLabels[status] || status}</span>`;
+    }
+
+    function metric(label, value, helper = "") {
+      return `<div class="card stat"><span>${label}</span><strong>${value}</strong>${helper ? `<small>${helper}</small>` : ""}</div>`;
+    }
+
+    function actionMetric(label, value, helper, actionLabel, status) {
+      return `<div class="card stat"><span>${label}</span><strong>${value}</strong>${helper ? `<small>${helper}</small>` : ""}<button class="btn primary" data-review-filter="${status}">${actionLabel}</button></div>`;
+    }
+
+    function claimRows(claims) {
+      if (!claims.length) return `<div class="empty"><strong>No claims yet / 暂无报销</strong>Your submitted claims will appear here.</div>`;
+      const rows = claims.map(claim => `
+        <tr>
+          <td>${displayDate(claim.submitted_at || claim.created_at)}</td>
+          <td><button class="btn ghost" data-open="${claim.id}">${escapeHtml(claim.claim_number)}</button></td>
+          <td>${escapeHtml(userName(claim.claimant_id))}</td>
+          <td>${escapeHtml(claim.merchant)}</td>
+          <td>${escapeHtml(categoryName(claim.category_id))}</td>
+          <td class="amount">${money(claim.claim_amount)}</td>
+          <td>${statusBadge(claim.status)}</td>
+        </tr>
+      `).join("");
+      const cards = claims.map(claim => `
+        <div class="claim-card">
+          <div class="claim-head">
+            <div>
+              <div class="claim-title">${escapeHtml(claim.merchant)}</div>
+              <div class="claim-meta">${escapeHtml(claim.claim_number)} · ${displayDate(claim.submitted_at || claim.created_at)}</div>
+              <div class="claim-meta">${escapeHtml(userName(claim.claimant_id))} · ${escapeHtml(categoryName(claim.category_id))}</div>
+            </div>
+            <div class="amount">${money(claim.claim_amount)}</div>
+          </div>
+          <div class="pill-row">${statusBadge(claim.status)}<button class="btn" data-open="${claim.id}">View / 查看</button></div>
+        </div>
+      `).join("");
+      return `<div class="desktop-table table-wrap"><table><thead><tr><th>Date</th><th>Claim ID</th><th>Staff</th><th>Merchant</th><th>Category</th><th>Amount</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="mobile-list">${cards}</div>`;
+    }
+
+    function reportRows(claims) {
+      if (!claims.length) return `<div class="empty"><strong>No claims found / 找不到报销单</strong>Try another search or status.</div>`;
+      return claims.map(claim => `
+        <div class="report-row">
+          <div class="report-row-main">
+            <div>
+              <div class="claim-title">${escapeHtml(claim.merchant)}</div>
+              <div class="claim-meta">${escapeHtml(claim.claim_number)} · ${displayDate(claim.submitted_at || claim.created_at)}</div>
+              <div class="claim-meta">${escapeHtml(categoryName(claim.category_id))}</div>
+            </div>
+            <div class="amount">${money(claim.claim_amount)}</div>
+          </div>
+          <div class="report-row-actions">
+            ${statusBadge(claim.status)}
+            <button class="btn" data-open="${claim.id}">View / 查看</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function reportStaffGroups(claims) {
+      if (!claims.length) return `<div class="empty"><strong>No claims found / 找不到报销单</strong>Try another search or status.</div>`;
+      const statusShortLabels = {
+        SUBMITTED: "Pending 待审",
+        NEED_REVIEW: "Need Review 需改",
+        APPROVED: "Approved 已批",
+        PAID: "Paid 已付",
+        REJECTED: "Rejected 已拒"
+      };
+      const grouped = new Map();
+      claims.forEach(claim => {
+        const key = claim.claimant_id || "unknown";
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(claim);
+      });
+      return [...grouped.entries()].map(([staffId, staffClaims]) => {
+        const sortedClaims = [...staffClaims].sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0));
+        const counts = sortedClaims.reduce((acc, claim) => {
+          acc[claim.status] = (acc[claim.status] || 0) + 1;
+          return acc;
+        }, {});
+        const totalClaimed = sortedClaims.reduce((sum, claim) => sum + Number(claim.claim_amount || 0), 0);
+        const totalApproved = sortedClaims.reduce((sum, claim) => sum + Number(claim.approved_amount || 0), 0);
+        const statusChips = statuses
+          .filter(status => counts[status])
+          .map(status => `<button type="button" data-report-staff="${staffId}" data-report-status="${status}">${statusShortLabels[status]} ${counts[status]}</button>`)
+          .join("");
+        const allChip = `<button type="button" class="active" data-report-staff="${staffId}" data-report-status="ALL">All / 全部 ${sortedClaims.length}</button>`;
+        return { staffId, staffClaims: sortedClaims, totalClaimed, totalApproved, statusChips: allChip + statusChips };
+      }).sort((a, b) => userName(a.staffId).localeCompare(userName(b.staffId))).map(group => `
+        <details class="audit-card report-person-card">
+          <summary>
+            <div class="claim-head">
+              <div>
+                <div class="claim-title">${escapeHtml(userName(group.staffId))}</div>
+                <div class="claim-meta">${group.staffClaims.length} claims / ${group.staffClaims.length} 张单 · Approved ${money(group.totalApproved)}</div>
+                <div class="report-person-meta">${group.statusChips}</div>
+              </div>
+              <div class="amount">${money(group.totalClaimed)}</div>
+            </div>
+          </summary>
+          <div class="audit-list" data-report-list="${group.staffId}">
+            ${reportRows(group.staffClaims)}
+          </div>
+        </details>
+      `).join("");
+    }
+
+    function staffClaimStatusGroups(claims) {
+      if (!claims.length) return `<div class="empty"><strong>No claims yet / 暂无报销</strong>Your submitted claims will appear here.</div>`;
+      const groups = [
+        { status: "NEED_REVIEW", title: "Need Review / 需修改" },
+        { status: "SUBMITTED", title: "Pending Review / 待审核" },
+        { status: "APPROVED", title: "Approved To Pay / 已批待付" },
+        { status: "PAID", title: "Paid / 已付款" },
+        { status: "REJECTED", title: "Rejected / 已拒绝" }
+      ];
+      return groups.map(group => {
+        const groupClaims = claims
+          .filter(claim => claim.status === group.status)
+          .sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0));
+        if (!groupClaims.length) return "";
+        const total = groupClaims.reduce((sum, claim) => sum + Number(claim.approved_amount || claim.claim_amount || 0), 0);
+        return `
+          <details class="audit-card report-person-card">
+            <summary>
+              <div class="claim-head">
+                <div>
+                  <div class="claim-title">${group.title}</div>
+                  <div class="claim-meta">${groupClaims.length} claims / ${groupClaims.length} 张单</div>
+                </div>
+                <div class="amount">${money(total)}</div>
+              </div>
+            </summary>
+            <div class="audit-list">
+              ${claimRows(groupClaims)}
+            </div>
+          </details>
+        `;
+      }).join("");
+    }
+
+    function claimMonthKey(claim) {
+      const value = claim.purchase_date || claim.submitted_at || claim.created_at || "";
+      return String(value).slice(0, 7);
+    }
+
+    function currentMonthKey() {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function monthLabel(key) {
+      const [year, month] = String(key).split("-").map(Number);
+      if (!year || !month) return key;
+      return new Date(year, month - 1, 1).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+    }
+
+    function claimMonthOptions(claims) {
+      return [...new Set(claims.map(claimMonthKey).filter(key => /^\d{4}-\d{2}$/.test(key)))].sort().reverse();
+    }
+
+    function claimYearOptions(claims) {
+      return [...new Set(claimMonthOptions(claims).map(month => month.slice(0, 4)))].sort().reverse();
+    }
+
+    function staffMonthButtons(months, allClaims, filteredCount) {
+      if (!months.length) return "";
+      const allActive = staffMonthFilter === "all";
+      return `
+        <div class="month-tabs" aria-label="Claim month / 报销月份">
+          <button class="btn ${allActive ? "active" : ""}" data-staff-month="all">All / 全部</button>
+          ${months.map(month => {
+            return `<button class="btn ${staffMonthFilter === month ? "active" : ""}" data-staff-month="${month}">${monthLabel(month)}</button>`;
+          }).join("")}
+        </div>
+        <p class="small-muted">${filteredCount} claims shown / 显示 ${filteredCount} 张单</p>
+      `;
+    }
+
+    function reportPeriodButtons(allClaims, filteredCount) {
+      const months = claimMonthOptions(allClaims);
+      const years = claimYearOptions(allClaims);
+      const current = currentMonthKey();
+      const selectedYear = /^\d{4}-\d{2}$/.test(reportPeriodFilter) ? reportPeriodFilter.slice(0, 4) : reportPeriodFilter;
+      const needsAction = claim => ["SUBMITTED", "NEED_REVIEW", "APPROVED"].includes(claim.status);
+      const hasOpenMonth = month => allClaims.some(claim => needsAction(claim) && claimMonthKey(claim) === month);
+      const hasOpenYear = year => allClaims.some(claim => needsAction(claim) && claimMonthKey(claim).startsWith(`${year}-`));
+      const reportPeriodClass = period => {
+        const active = reportPeriodFilter === period;
+        const open = period === "all" ? allClaims.some(needsAction) : /^\d{4}$/.test(period) ? hasOpenYear(period) : hasOpenMonth(period);
+        return `${active ? "active" : ""} ${open ? "attention" : ""}`.trim();
+      };
+      const monthChoices = months.filter(month => {
+        if (reportPeriodFilter === "all") return false;
+        return month.startsWith(`${selectedYear}-`);
+      });
+      return `
+        <div class="month-tabs" aria-label="Report year / 报表年份">
+          <button class="btn ${reportPeriodClass(current)}" data-report-period="${current}">${monthLabel(current)}</button>
+          ${years.map(year => `<button class="btn ${reportPeriodClass(year)}" data-report-period="${year}">${year}</button>`).join("")}
+          <button class="btn ${reportPeriodClass("all")}" data-report-period="all">All / 全部</button>
+        </div>
+        ${monthChoices.length ? `<div class="month-tabs" aria-label="Report month / 报表月份">
+          ${monthChoices.map(month => `<button class="btn ${reportPeriodClass(month)}" data-report-period="${month}">${monthLabel(month)}</button>`).join("")}
+        </div>` : ""}
+        <p class="small-muted">${filteredCount} claims shown / 显示 ${filteredCount} 张单</p>
+      `;
+    }
+
+    function payMonthButtons(months, filteredCount) {
+      const years = [...new Set(months.map(month => month.slice(0, 4)))].sort().reverse();
+      const current = currentMonthKey();
+      const selectedYear = /^\d{4}-\d{2}$/.test(payMonthFilter) ? payMonthFilter.slice(0, 4) : payMonthFilter;
+      const hasOpenMonth = month => months.includes(month);
+      const hasOpenYear = year => months.some(month => month.startsWith(`${year}-`));
+      const payPeriodClass = period => {
+        const active = payMonthFilter === period;
+        const open = period === "all" ? months.length > 0 : /^\d{4}$/.test(period) ? hasOpenYear(period) : hasOpenMonth(period);
+        return `${active ? "active" : ""} ${open ? "attention" : ""}`.trim();
+      };
+      const monthChoices = months.filter(month => {
+        if (payMonthFilter === "all") return false;
+        return month.startsWith(`${selectedYear}-`);
+      });
+      return `
+        <div class="month-tabs" aria-label="Pay year / 付款年份">
+          <button class="btn ${payPeriodClass(current)}" data-pay-month="${current}">${monthLabel(current)}</button>
+          ${years.map(year => `<button class="btn ${payPeriodClass(year)}" data-pay-month="${year}">${year}</button>`).join("")}
+          <button class="btn ${payPeriodClass("all")}" data-pay-month="all">All / 全部</button>
+        </div>
+        ${monthChoices.length ? `<div class="month-tabs" aria-label="Pay month / 付款月份">
+          ${monthChoices.map(month => `<button class="btn ${payPeriodClass(month)}" data-pay-month="${month}">${monthLabel(month)}</button>`).join("")}
+        </div>` : ""}
+        <p class="small-muted">${filteredCount} claims shown / 显示 ${filteredCount} 张单</p>
+      `;
+    }
+
+    function bindOpenClaim(container = document) {
+      container.querySelectorAll("[data-open]").forEach(button => {
+        button.addEventListener("click", () => setRoute("detail", button.dataset.open));
+      });
+    }
+
+    function roleAccessText(role) {
+      if (role === "staff") return "Only own receipt claims / 只看自己的报销";
+      if (role === "accountant") return "Review and pay all claims / 审核付款全部员工";
+      return "Full access and settings / 全部权限和设置";
+    }
+
+    function renderLogin() {
+      const users = sortedUsers(state.users.filter(user => user.is_active));
+      const html = `
+        <div class="login-page">
+          <section class="login-hero">
+            <h1>Staff Claims Demo</h1>
+            <p>Login as Sales A to test staff privacy. Staff can only see their own receipts; Accounts and Admin can see all claims.</p>
+          </section>
+          <section class="login-options">
+            ${users.map(user => `
+              <button class="login-option" data-login="${user.id}">
+                <span>
+                  <strong>${escapeHtml(user.name)}</strong>
+                  <span>${escapeHtml(roleAccessText(user.role))}</span>
+                </span>
+                <b>${user.id === "u-staff-1" ? "Start / 进入" : "Login / 登录"}</b>
+              </button>
+            `).join("")}
+          </section>
+        </div>
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelectorAll("[data-login]").forEach(button => {
+        button.addEventListener("click", () => {
+          currentUserId = button.dataset.login;
+          localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
+          localStorage.setItem(AUTH_KEY, "true");
+          isLoggedIn = true;
+          route = "dashboard";
+          activeClaimId = null;
+          reportPeriodFilter = currentMonthKey();
+          staffMonthFilter = "all";
+          payMonthFilter = currentMonthKey();
+          reviewStatusFilter = "SUBMITTED";
+          reviewListVisible = false;
+          render();
+        });
+      });
+    }
+
+    function renderDashboard() {
+      const user = currentUser();
+      const allClaims = visibleClaims();
+      const staffMetrics = user.role === "staff";
+      const monthOptions = staffMetrics ? claimMonthOptions(allClaims) : [];
+      if (staffMetrics && staffMonthFilter !== "all" && !monthOptions.includes(staffMonthFilter)) staffMonthFilter = "all";
+      const claims = staffMetrics && staffMonthFilter !== "all"
+        ? allClaims.filter(claim => claimMonthKey(claim) === staffMonthFilter)
+        : allClaims;
+      const month = new Date().toISOString().slice(0, 7);
+      const pending = claims.filter(claim => claim.status === "SUBMITTED");
+      const needReview = claims.filter(claim => claim.status === "NEED_REVIEW");
+      const approvedNotPaid = claims.filter(claim => claim.status === "APPROVED");
+      const paidThisMonth = claims.filter(claim => claim.status === "PAID" && (claim.payment_date || "").startsWith(month));
+      const paidForStaffMetric = staffMetrics && staffMonthFilter !== "all" ? claims.filter(claim => claim.status === "PAID") : paidThisMonth;
+      const paidStaffLabel = staffMetrics && staffMonthFilter !== "all" ? "Paid / 已付款" : "Paid This Month / 本月已付";
+      const html = `
+        ${pageHeader(staffMetrics ? "My Claims / 我的报销" : "Claim Review / 报销审核", `${escapeHtml(user.name)} · ${user.role}`, staffMetrics ? `<button class="btn primary" data-new>New Claim / 新报销</button>` : "")}
+        <div class="grid summary-grid">
+          ${staffMetrics
+            ? metric("Pending / 待处理", money(claims.filter(c => ["SUBMITTED", "NEED_REVIEW"].includes(c.status)).reduce((sum, c) => sum + Number(c.claim_amount || 0), 0)), `${claims.filter(c => ["SUBMITTED", "NEED_REVIEW"].includes(c.status)).length} claims`)
+              + metric("Approved / 已批准", money(approvedNotPaid.reduce((sum, c) => sum + Number(c.approved_amount || c.claim_amount || 0), 0)), "Not paid yet / 尚未付款")
+              + metric(paidStaffLabel, money(paidForStaffMetric.reduce((sum, c) => sum + Number(c.paid_amount || 0), 0)), `${paidForStaffMetric.length} claims`)
+              + metric("Claims / 报销单", String(claims.length), staffMonthFilter === "all" ? "Own claims only / 只显示本人" : monthLabel(staffMonthFilter))
+            : actionMetric("Pending Review / 待审核", String(pending.length), money(pending.reduce((sum, c) => sum + Number(c.claim_amount || 0), 0)), "Process / 处理", "SUBMITTED")
+              + actionMetric("Need Review / 需修改", String(needReview.length), "Waiting for staff", "Process / 处理", "NEED_REVIEW")
+              + metric("Approved To Pay / 已批待付", money(approvedNotPaid.reduce((sum, c) => sum + Number(c.approved_amount || c.claim_amount || 0), 0)), `${approvedNotPaid.length} claims`)
+              + metric("Paid This Month / 本月已付", money(paidThisMonth.reduce((sum, c) => sum + Number(c.paid_amount || 0), 0)), `${paidThisMonth.length} claims`)
+          }
+        </div>
+        ${staffMetrics ? `
+          <section class="card section">
+            <h2>My Claims By Status / 按状态分类</h2>
+            ${staffMonthButtons(monthOptions, allClaims, claims.length)}
+            ${staffClaimStatusGroups(claims)}
+          </section>
+        ` : ""}
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelector("[data-new]")?.addEventListener("click", () => setRoute("new"));
+      document.querySelectorAll("[data-review-filter]").forEach(button => {
+        button.addEventListener("click", () => {
+          reviewStatusFilter = button.dataset.reviewFilter;
+          reviewListVisible = true;
+          setRoute("review");
+        });
+      });
+      document.querySelectorAll("[data-staff-month]").forEach(button => {
+        button.addEventListener("click", () => {
+          staffMonthFilter = button.dataset.staffMonth;
+          renderDashboard();
+        });
+      });
+      bindOpenClaim();
+    }
+
+    function aiFlag(field) {
+      const value = getDraft().ai_flags?.[field];
+      if (value === "detected") return `<span class="small-muted">Detected / 已识别</span>`;
+      if (value === "check") return `<span class="small-muted" style="color:var(--warning)">Please check / 请核对</span>`;
+      return "";
+    }
+
+    function renderNewClaim() {
+      const draft = getDraft();
+      const editingClaimId = draft.editing_claim_id;
+      const categoryOptions = state.categories.filter(category => category.is_active).sort((a, b) => a.sort_order - b.sort_order).map(category =>
+        `<option value="${category.id}" ${draft.category_id === category.id ? "selected" : ""}>${escapeHtml(category.name)}</option>`
+      ).join("");
+      const receiptPreview = draft.receipt ? attachmentThumb(draft.receipt, true) : "";
+      const proofPreview = draft.proofs.map(file => attachmentThumb(file, true)).join("");
+      const validation = validateDraft(draft);
+      const duplicateNotice = draft.duplicate
+        ? `<div class="notice warning">Possible duplicate / 可能重复：${escapeHtml(draft.duplicate.message)} <button class="btn ghost" data-open="${draft.duplicate.claim_id}">View existing / 查看已有</button></div>`
+        : "";
+      const html = `
+        <div class="wizard">
+          ${pageHeader(editingClaimId ? "Correct Claim / 修改报销" : "New Claim / 新报销", "Mobile first submission / 手机提交优先", `<button class="btn" data-clear>Clear Draft / 清除草稿</button>`)}
+          <div class="steps">${[1,2,3,4,5,6].map((_, index) => `<div class="step-pill ${index < progressFromDraft(draft) ? "active" : ""}"></div>`).join("")}</div>
+          ${draft.ai_status === "SCANNED" ? `<div class="notice success">AI scan completed. Please verify before submit / 已扫描，请提交前核对。</div>` : ""}
+          ${duplicateNotice}
+          ${validation.length ? `<div class="notice warning">${escapeHtml(validation[0])}</div>` : `<div class="notice success">Ready to submit / 可以提交</div>`}
+          <section class="card section">
+            <h2>Receipt / 收据</h2>
+            <div class="upload-box">
+              <p class="small-muted">Take or upload a clear receipt photo. Original image is kept for review.</p>
+              <div class="upload-actions">
+                <label class="btn primary" for="receiptCamera">Take Receipt Photo / 拍收据</label>
+                <label class="btn" for="receiptUpload">Upload Receipt / 上传收据</label>
+                ${draft.receipt ? `<button class="btn" data-scan>Scan Receipt / 扫描收据</button>` : ""}
+                ${draft.receipt ? `<button class="btn danger" data-delete-receipt type="button">Delete Receipt / 删除收据</button>` : ""}
+              </div>
+              <input class="hide" id="receiptCamera" type="file" accept="image/*" capture="environment">
+              <input class="hide" id="receiptUpload" type="file" accept="image/*">
+              <div class="preview-grid">${receiptPreview}</div>
+            </div>
+          </section>
+
+          <section class="card section">
+            <h2>Receipt Details / 收据资料</h2>
+            <div class="form-grid">
+              ${field("purchase_date", "Purchase Date / 购买日期", draft.purchase_date, "date", aiFlag("purchase_date"))}
+              ${field("currency", "Currency / 币种", draft.currency || "MYR", "text")}
+              ${field("claim_amount", "Claim Amount / 报销金额", draft.claim_amount, "number")}
+            </div>
+          </section>
+
+          <section class="card section">
+            <h2>Purpose of Expense / 报销内容</h2>
+            <div class="form-grid">
+              <div class="field"><label>Category / 分类</label><select data-field="category_id"><option value="">Select category / 选择分类</option>${categoryOptions}</select></div>
+              <div class="field span-2"><label>Remarks / 备注</label><textarea data-field="remarks">${escapeHtml(draft.remarks)}</textarea></div>
+            </div>
+          </section>
+
+          <section class="card section">
+            <h2>Purchase Proof / 实物照片</h2>
+            <div class="upload-box">
+              <p class="small-muted">Take photos of the actual item purchased. At least one photo is required.</p>
+              <div class="upload-actions">
+                <label class="btn primary" for="proofCamera">Take Item Photo / 拍实物</label>
+                <label class="btn" for="proofUpload">Upload Photos / 上传照片</label>
+              </div>
+              <input class="hide" id="proofCamera" type="file" accept="image/*" capture="environment" multiple>
+              <input class="hide" id="proofUpload" type="file" accept="image/*" multiple>
+              <div class="preview-grid">${proofPreview}</div>
+            </div>
+          </section>
+
+          <section class="card section">
+            <h2>Claim Summary / 提交确认</h2>
+            <div class="kv"><span>Date / 日期</span><strong>${displayDate(draft.purchase_date)}</strong></div>
+            ${draft.receipt_total ? `<div class="kv"><span>Receipt Total / 收据总额</span><strong>${money(draft.receipt_total)}</strong></div>` : ""}
+            <div class="kv"><span>Claim Amount / 报销金额</span><strong>${money(draft.claim_amount)}</strong></div>
+            <div class="kv"><span>Receipt / 收据</span><strong>${draft.receipt ? "Attached / 已上传" : "Missing / 未上传"}</strong></div>
+          </section>
+
+          <div class="sticky-submit">
+            <button class="btn" data-save>Save Draft / 保存草稿</button>
+            <button class="btn primary" data-submit>${editingClaimId ? "Resubmit Claim / 重新提交" : "Submit Claim / 提交报销"}</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("view").innerHTML = html;
+      bindNewClaim();
+      bindOpenClaim();
+    }
+
+    function field(name, label, value, type = "text", hint = "") {
+      const step = type === "number" ? ` step="0.01"` : "";
+      return `<div class="field"><label>${label}</label><input data-field="${name}" type="${type}"${step} value="${escapeHtml(value ?? "")}">${hint}</div>`;
+    }
+
+    function progressFromDraft(draft) {
+      let score = 0;
+      if (draft.receipt) score++;
+      if (draft.ai_status === "SCANNED" || draft.claim_amount) score++;
+      if (draft.purchase_date && draft.claim_amount) score++;
+      if (draft.proofs.length) score++;
+      if (draft.category_id) score++;
+      if (!validateDraft(draft).length) score++;
+      return score;
+    }
+
+    function attachmentThumb(file, removable = false) {
+      return `<div class="thumb">
+        <a href="${file.data_url}" target="_blank" rel="noopener"><img src="${file.data_url}" alt="${escapeHtml(file.original_filename)}"></a>
+        <footer><span title="${escapeHtml(file.original_filename)}">${escapeHtml(file.original_filename.slice(0, 18))}</span>${removable ? `<button data-remove="${file.id}" type="button">Remove</button>` : ""}</footer>
+      </div>`;
+    }
+
+    function bindNewClaim() {
+      document.querySelectorAll("[data-field]").forEach(input => {
+        input.addEventListener("input", () => {
+          const patch = { [input.dataset.field]: input.value };
+          if (input.dataset.field === "receipt_total" && !getDraft().claim_amount) patch.claim_amount = input.value;
+          updateDraft(patch);
+        });
+        input.addEventListener("change", () => updateDraft({ [input.dataset.field]: input.value }));
+      });
+      const handleReceipt = async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        updateDraft({ receipt: await fileToAttachment(file, "RECEIPT"), ai_status: "READY_TO_SCAN" });
+        toast("Receipt uploaded / 收据已上传");
+        renderNewClaim();
+      };
+      document.getElementById("receiptCamera").addEventListener("change", handleReceipt);
+      document.getElementById("receiptUpload").addEventListener("change", handleReceipt);
+      const handleProofs = async event => {
+        const files = Array.from(event.target.files || []);
+        if (!files.length) return;
+        const attachments = await Promise.all(files.map(file => fileToAttachment(file, "PURCHASE_PROOF")));
+        updateDraft({ proofs: [...getDraft().proofs, ...attachments] });
+        toast("Purchase proof uploaded / 实物照片已上传");
+        renderNewClaim();
+      };
+      document.getElementById("proofCamera").addEventListener("change", handleProofs);
+      document.getElementById("proofUpload").addEventListener("change", handleProofs);
+      document.querySelector("[data-scan]")?.addEventListener("click", simulateAiScan);
+      document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => {
+        updateDraft({
+          receipt: null,
+          ai_status: "NOT_SCANNED",
+          ai_flags: {},
+          receipt_subtotal: "",
+          receipt_tax: "",
+          receipt_total: "",
+          receipt_number: "",
+          merchant: ""
+        });
+        toast("Receipt deleted / 收据已删除");
+        renderNewClaim();
+      });
+      document.querySelector("[data-submit]").addEventListener("click", () => {
+        const editingId = getDraft().editing_claim_id;
+        if (editingId) saveResubmission(editingId);
+        else submitDraft();
+      });
+      document.querySelector("[data-save]").addEventListener("click", () => toast("Draft saved / 草稿已保存"));
+      document.querySelector("[data-clear]").addEventListener("click", () => {
+        clearDraft();
+        toast("Draft cleared / 草稿已清除");
+        renderNewClaim();
+      });
+      document.querySelectorAll("[data-remove]").forEach(button => {
+        button.addEventListener("click", () => {
+          const draft = getDraft();
+          if (draft.receipt?.id === button.dataset.remove) updateDraft({ receipt: null, ai_status: "NOT_SCANNED" });
+          else updateDraft({ proofs: draft.proofs.filter(file => file.id !== button.dataset.remove) });
+          renderNewClaim();
+        });
+      });
+    }
+
+    function renderReview() {
+      const claims = state.claims.filter(claim => ["SUBMITTED", "NEED_REVIEW"].includes(claim.status));
+      const pending = claims.filter(claim => claim.status === "SUBMITTED");
+      const need = claims.filter(claim => claim.status === "NEED_REVIEW");
+      const duplicates = claims.filter(claim => claim.duplicate_flag);
+      const activeClaims = reviewStatusFilter === "DUPLICATE" ? duplicates : reviewStatusFilter === "NEED_REVIEW" ? need : pending;
+      const activeTitle = reviewStatusFilter === "DUPLICATE" ? "Duplicate Flags / 重复提示" : reviewStatusFilter === "NEED_REVIEW" ? "Need Review / 需修改" : "Pending Review / 待审核";
+      const html = `
+        ${pageHeader("Claim Review / 报销审核", "Verify receipt before approving / 先核对再批准")}
+        <div class="grid summary-grid">
+          ${actionMetric("Pending Review / 待审核", String(pending.length), money(pending.reduce((sum, c) => sum + Number(c.claim_amount || 0), 0)), "Process / 处理", "SUBMITTED")}
+          ${actionMetric("Need Review / 需修改", String(need.length), "Returned to staff", "Process / 处理", "NEED_REVIEW")}
+          ${actionMetric("Duplicate Flags / 重复提示", String(duplicates.length), "Needs human decision", "View / 查看", "DUPLICATE")}
+          ${reviewListVisible ? metric("Review List / 审核列表", String(activeClaims.length), activeTitle) : ""}
+        </div>
+        ${reviewListVisible ? `<section class="card section">
+          <h2>${activeTitle}</h2>
+          ${claimRows(activeClaims)}
+        </section>` : ""}
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelectorAll("[data-review-filter]").forEach(button => {
+        button.addEventListener("click", () => {
+          const nextFilter = button.dataset.reviewFilter;
+          if (reviewListVisible && reviewStatusFilter === nextFilter) {
+            reviewListVisible = false;
+          } else {
+            reviewStatusFilter = nextFilter;
+            reviewListVisible = true;
+          }
+          renderReview();
+        });
+      });
+      bindOpenClaim();
+    }
+
+    function renderToPay() {
+      const allApproved = state.claims.filter(claim => claim.status === "APPROVED");
+      const months = claimMonthOptions(allApproved);
+      if (!payMonthFilter) payMonthFilter = currentMonthKey();
+      const approved = payMonthFilter === "all"
+        ? allApproved
+        : /^\d{4}$/.test(payMonthFilter)
+          ? allApproved.filter(claim => claimMonthKey(claim).startsWith(`${payMonthFilter}-`))
+          : allApproved.filter(claim => claimMonthKey(claim) === payMonthFilter);
+      const grouped = approved.reduce((acc, claim) => {
+        if (!acc[claim.claimant_id]) acc[claim.claimant_id] = [];
+        acc[claim.claimant_id].push(claim);
+        return acc;
+      }, {});
+      const groupCards = Object.keys(grouped).length ? Object.entries(grouped).map(([userId, claims]) => `
+        <div class="claim-card">
+          <div class="claim-head">
+            <div>
+              <div class="claim-title">${escapeHtml(userName(userId))}</div>
+              <div class="claim-meta">${claims.length} claims / 笔报销</div>
+            </div>
+            <div class="amount">${money(claims.reduce((sum, c) => sum + (c.approved_amount || c.claim_amount), 0))}</div>
+          </div>
+          <div class="pill-row pay-claim-row">${claims.map(c => `<button class="btn pay-claim-btn" data-open="${c.id}">${escapeHtml(c.claim_number)}</button>`).join("")}</div>
+        </div>
+      `).join("") : `<div class="empty"><strong>No approved unpaid claims / 没有待付款</strong>${payMonthFilter === "all" ? "You're all caught up." : `${/^\d{4}$/.test(payMonthFilter) ? payMonthFilter : monthLabel(payMonthFilter)} has no unpaid approved claims / 没有待付款。`}</div>`;
+      const html = `
+        ${pageHeader("Approved - To Pay / 已批准待付款", "Approved and paid are separate events / 批准和付款是两件事")}
+        <div class="grid summary-grid">
+          ${metric("Staff Owed / 应付员工", String(Object.keys(grouped).length), "People")}
+          ${metric("Claims / 报销笔数", String(approved.length), "Approved not paid")}
+          ${metric("Total Amount To Pay / 应付总额", money(approved.reduce((sum, c) => sum + (c.approved_amount || c.claim_amount), 0)), "Awaiting payment")}
+          ${metric("Paid Is Manual / 付款需手动确认", "Yes", "Never auto-set paid")}
+        </div>
+        <section class="card section">
+          <h2>To Pay / 待付款</h2>
+          ${payMonthButtons(months, approved.length)}
+          ${groupCards}
+        </section>
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelectorAll("[data-pay-month]").forEach(button => {
+        button.addEventListener("click", () => {
+          payMonthFilter = button.dataset.payMonth;
+          renderToPay();
+        });
+      });
+      bindOpenClaim();
+    }
+
+    function filterClaimsForReports() {
+      let claims = visibleClaims();
+      const f = reportFilters;
+      if (!reportPeriodFilter) reportPeriodFilter = currentMonthKey();
+      if (reportPeriodFilter === "all") {
+        // Show all report records.
+      } else if (/^\d{4}$/.test(reportPeriodFilter)) {
+        claims = claims.filter(c => claimMonthKey(c).startsWith(`${reportPeriodFilter}-`));
+      } else {
+        claims = claims.filter(c => claimMonthKey(c) === reportPeriodFilter);
+      }
+      if (f.status) claims = claims.filter(c => c.status === f.status);
+      if (f.search) {
+        const term = f.search.toLowerCase();
+        claims = claims.filter(c => [c.claim_number, c.receipt_number, c.merchant, userName(c.claimant_id), categoryName(c.category_id)].some(value => String(value || "").toLowerCase().includes(term)));
+      }
+      return claims;
+    }
+
+    function renderReports() {
+      const allReportClaims = visibleClaims();
+      const claims = filterClaimsForReports();
+      const staffCount = new Set(claims.map(claim => claim.claimant_id || "unknown")).size;
+      const statusOptions = statuses.map(status => `<option value="${status}" ${reportFilters.status === status ? "selected" : ""}>${statusLabels[status]}</option>`).join("");
+      const html = `
+        ${pageHeader("Reports / 报表", "Simple claim totals / 报销总览", `<button class="btn primary" data-export>Export CSV / 导出 CSV</button>`)}
+        <section class="card section">
+          <div class="filters">
+            <div class="field"><label>Search / 搜索</label><input data-filter="search" value="${escapeHtml(reportFilters.search || "")}" placeholder="Claim ID, staff, merchant, category"></div>
+            <div class="field"><label>Status / 状态</label><select data-filter="status"><option value="">All status / 全部状态</option>${statusOptions}</select></div>
+          </div>
+          <div class="grid summary-grid">
+            ${metric("Total Claimed / 总报销", money(claims.reduce((s,c) => s + Number(c.claim_amount || 0), 0)))}
+            ${metric("Total Approved / 总批准", money(claims.reduce((s,c) => s + Number(c.approved_amount || 0), 0)))}
+            ${metric("Total Paid / 总付款", money(claims.reduce((s,c) => s + Number(c.paid_amount || 0), 0)))}
+            ${metric("Approved Unpaid / 已批未付", money(claims.filter(c => c.status === "APPROVED").reduce((s,c) => s + Number(c.approved_amount || c.claim_amount || 0), 0)))}
+          </div>
+        </section>
+        <section class="card section">
+          <div class="claim-head">
+            <div>
+              <h2>By Staff / 按员工</h2>
+              <p class="small-muted">${staffCount} staff · ${claims.length} claims / ${staffCount} 位员工 · ${claims.length} 张单</p>
+            </div>
+          </div>
+          ${reportPeriodButtons(allReportClaims, claims.length)}
+          ${reportStaffGroups(claims)}
+        </section>
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelectorAll("[data-report-period]").forEach(button => {
+        button.addEventListener("click", () => {
+          reportPeriodFilter = button.dataset.reportPeriod;
+          renderReports();
+        });
+      });
+      document.querySelectorAll("[data-filter]").forEach(input => {
+        const updateReportFilter = () => {
+          reportFilters[input.dataset.filter] = input.value;
+          renderReports();
+        };
+        input.addEventListener("change", updateReportFilter);
+        input.addEventListener("keydown", event => {
+          if (event.key === "Enter") updateReportFilter();
+        });
+      });
+      document.querySelectorAll("[data-report-status]").forEach(button => {
+        button.addEventListener("click", event => {
+          event.preventDefault();
+          const staffId = button.dataset.reportStaff;
+          const status = button.dataset.reportStatus;
+          const card = button.closest(".report-person-card");
+          const list = document.querySelector(`[data-report-list="${staffId}"]`);
+          if (!list) return;
+          const staffClaims = claims
+            .filter(claim => claim.claimant_id === staffId)
+            .filter(claim => status === "ALL" || claim.status === status)
+            .sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0));
+          card.open = true;
+          card.querySelectorAll("[data-report-status]").forEach(item => item.classList.toggle("active", item === button));
+          list.innerHTML = reportRows(staffClaims);
+          bindOpenClaim(list);
+        });
+      });
+      document.querySelector("[data-export]").addEventListener("click", exportCsv);
+      bindOpenClaim();
+    }
+
+    function exportCsv() {
+      const claims = filterClaimsForReports();
+      const header = ["Claim ID","Claim Date","Staff","Merchant","Receipt Number","Purchase Date","Category","Purpose","Receipt Total","Claim Amount","Approved Amount","Status","Approved Date","Paid Date","Payment Reference"];
+      const rows = claims.map(claim => [
+        claim.claim_number,
+        (claim.submitted_at || claim.created_at || "").slice(0, 10),
+        userName(claim.claimant_id),
+        claim.merchant,
+        claim.receipt_number,
+        claim.purchase_date,
+        categoryName(claim.category_id),
+        claim.purpose,
+        claim.receipt_total,
+        claim.claim_amount,
+        claim.approved_amount || "",
+        claim.status,
+        claim.approved_at ? claim.approved_at.slice(0, 10) : "",
+        claim.payment_date || "",
+        claim.payment_reference || ""
+      ]);
+      const csv = [header, ...rows].map(row => row.map(value => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `claims-report-${todayISO()}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function claimLabelForAudit(claimId) {
+      if (claimId === "system") return "System / 系统";
+      const claim = state.claims.find(item => item.id === claimId);
+      if (!claim) return "Unknown Claim / 未知报销";
+      return `${claim.claim_number} · ${userName(claim.claimant_id)} · ${money(claim.claim_amount)}`;
+    }
+
+    function formatAuditValue(key, value) {
+      if (value === undefined || value === null || value === "") return "-";
+      if (key.includes("amount")) return money(value);
+      if (key.includes("category_id")) return categoryName(value);
+      if (key.includes("claim_id")) {
+        const claim = state.claims.find(item => item.id === value);
+        return claim ? claim.claim_number : value;
+      }
+      return String(value);
+    }
+
+    function auditMetadata(log) {
+      const entries = Object.entries(log.metadata || {});
+      if (!entries.length) return "";
+      const paired = [];
+      const used = new Set();
+      entries.forEach(([key, value]) => {
+        if (!key.startsWith("old_")) return;
+        const base = key.slice(4);
+        const newKey = `new_${base}`;
+        if (Object.prototype.hasOwnProperty.call(log.metadata, newKey)) {
+          used.add(key);
+          used.add(newKey);
+          paired.push(`<span>${escapeHtml(base.replaceAll("_", " "))}: ${escapeHtml(formatAuditValue(key, value))} -> ${escapeHtml(formatAuditValue(newKey, log.metadata[newKey]))}</span>`);
+        }
+      });
+      const remaining = entries
+        .filter(([key]) => !used.has(key))
+        .map(([key, value]) => `<span>${escapeHtml(key.replaceAll("_", " "))}: ${escapeHtml(formatAuditValue(key, value))}</span>`);
+      return `<div class="audit-meta">${[...paired, ...remaining].join("")}</div>`;
+    }
+
+    function auditActionOptions() {
+      return [...new Set(state.auditLogs.map(log => log.action))]
+        .sort()
+        .map(action => `<option value="${escapeHtml(action)}" ${auditFilters.action === action ? "selected" : ""}>${escapeHtml(action)}</option>`)
+        .join("");
+    }
+
+    function filteredAuditLogs() {
+      const term = auditFilters.search.trim().toLowerCase();
+      return state.auditLogs.filter(log => {
+        const claim = state.claims.find(item => item.id === log.claim_id);
+        const createdDate = (log.created_at || "").slice(0, 10);
+        const metadata = JSON.stringify(log.metadata || {}).toLowerCase();
+        const haystack = [
+          log.action,
+          userName(log.actor_id),
+          claim?.claim_number,
+          claim ? userName(claim.claimant_id) : "",
+          claim?.merchant,
+          metadata
+        ].join(" ").toLowerCase();
+        if (auditFilters.action && log.action !== auditFilters.action) return false;
+        if (auditFilters.from && createdDate < auditFilters.from) return false;
+        if (auditFilters.to && createdDate > auditFilters.to) return false;
+        if (term && !haystack.includes(term)) return false;
+        return true;
+      });
+    }
+
+    function auditTrailCards() {
+      const logs = filteredAuditLogs();
+      const controls = `<div class="audit-controls">
+        <div class="field"><label>Search / 搜索</label><input data-audit-filter="search" value="${escapeHtml(auditFilters.search)}" placeholder="Claim ID, staff, action"></div>
+        <div class="form-grid">
+          <div class="field"><label>All / 全部</label><select data-audit-filter="action"><option value="">All / 全部</option>${auditActionOptions()}</select></div>
+          <div class="field"><label>From / 从</label><input data-audit-filter="from" type="date" value="${auditFilters.from}"></div>
+          <div class="field"><label>To / 到</label><input data-audit-filter="to" type="date" value="${auditFilters.to}"></div>
+        </div>
+      </div>`;
+      if (!state.auditLogs.length) {
+        return `${controls}<div class="empty"><strong>No audit logs / 暂无审计记录</strong>Important actions will appear here.</div>`;
+      }
+      if (!logs.length) {
+        return `${controls}<div class="empty"><strong>No matching records / 没有符合的记录</strong>Try changing the search or filters.</div>`;
+      }
+      const grouped = logs.reduce((acc, log) => {
+        const key = log.claim_id || "system";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(log);
+        return acc;
+      }, {});
+      const claimGroups = Object.entries(grouped)
+        .map(([claimId, groupLogs]) => ({
+          claimId,
+          claim: state.claims.find(item => item.id === claimId),
+          logs: [...groupLogs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        }))
+        .sort((a, b) => new Date(b.logs[0].created_at) - new Date(a.logs[0].created_at));
+      const staffMap = claimGroups.reduce((acc, group) => {
+        const staffId = group.claim?.claimant_id || "system";
+        if (!acc[staffId]) acc[staffId] = { staffId, staffName: group.claim ? userName(staffId) : "System / 系统", claims: [], latest: group.logs[0].created_at };
+        acc[staffId].claims.push(group);
+        if (new Date(group.logs[0].created_at) > new Date(acc[staffId].latest)) acc[staffId].latest = group.logs[0].created_at;
+        return acc;
+      }, {});
+      const userOrder = new Map(sortedUsers(state.users).map((user, index) => [user.id, index]));
+      const staffGroups = Object.values(staffMap).sort((a, b) => {
+        const rankA = userOrder.has(a.staffId) ? userOrder.get(a.staffId) : 999;
+        const rankB = userOrder.has(b.staffId) ? userOrder.get(b.staffId) : 999;
+        return rankA - rankB || a.staffName.localeCompare(b.staffName);
+      });
+      const totalPages = Math.max(1, Math.ceil(staffGroups.length / AUDIT_PAGE_SIZE));
+      if (auditPage > totalPages) auditPage = totalPages;
+      const start = (auditPage - 1) * AUDIT_PAGE_SIZE;
+      const pageGroups = staffGroups.slice(start, start + AUDIT_PAGE_SIZE);
+      const cards = pageGroups.map(group => {
+        const totalLogs = group.claims.reduce((sum, item) => sum + item.logs.length, 0);
+        return `<details class="audit-card">
+          <summary>
+            <div class="claim-head">
+              <div>
+                <div class="claim-title">${escapeHtml(group.staffName)}</div>
+                <div class="claim-meta">${group.claims.length} claims / ${group.claims.length} 张单 · Latest / 最新：${displayDateTime(group.latest)}</div>
+              </div>
+              <span class="badge status-DRAFT">${totalLogs} logs</span>
+            </div>
+          </summary>
+          <div class="audit-staff-list">
+            ${group.claims.map(({ claimId, logs }) => {
+              const sorted = [...logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+              const latest = sorted[0];
+              return `<div class="audit-simple-row">
+                <div>
+                  <strong>${escapeHtml(claimLabelForAudit(claimId))}</strong>
+                  <span>${escapeHtml(latest.action)}</span>
+                  <span>${displayDateTime(latest.created_at)} · ${escapeHtml(userName(latest.actor_id))}</span>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+        </details>`;
+      }).join("");
+      const pager = `<div class="audit-pager">
+        <button class="btn" data-audit-page="prev" ${auditPage <= 1 ? "disabled" : ""}>Prev / 上一页</button>
+        <span>${auditPage} / ${totalPages} · ${staffGroups.length} staff · ${claimGroups.length} claims</span>
+        <button class="btn" data-audit-page="next" ${auditPage >= totalPages ? "disabled" : ""}>Next / 下一页</button>
+      </div>`;
+      return `${controls}${cards}${pager}`;
+    }
+
+    function employeeSettings(user) {
+      openModal(`
+        <h2>Employee Settings / 员工设置</h2>
+        <div class="field"><label>Name / 名字</label><input id="editUserName" value="${escapeHtml(user.name)}"></div>
+        <div class="field"><label>Email / 电邮</label><input id="editUserEmail" value="${escapeHtml(user.email || "")}"></div>
+        <div class="field"><label>Role / 角色</label><select id="editUserRole">
+          <option value="staff" ${user.role === "staff" ? "selected" : ""}>staff</option>
+          <option value="accountant" ${user.role === "accountant" ? "selected" : ""}>accountant</option>
+          <option value="admin" ${user.role === "admin" ? "selected" : ""}>admin</option>
+        </select></div>
+        <div class="field"><label>Status / 状态</label><select id="editUserStatus">
+          <option value="active" ${user.is_active ? "selected" : ""}>Active / 启用</option>
+          <option value="inactive" ${!user.is_active ? "selected" : ""}>Inactive / 停用</option>
+        </select></div>
+        <footer><button class="btn" data-close>Cancel / 取消</button><button class="btn primary" id="saveUserSettings">Save / 保存</button></footer>
+      `, modal => {
+        modal.querySelector("#saveUserSettings").addEventListener("click", () => {
+          const name = modal.querySelector("#editUserName").value.trim();
+          const email = modal.querySelector("#editUserEmail").value.trim();
+          const role = modal.querySelector("#editUserRole").value;
+          const isActive = modal.querySelector("#editUserStatus").value === "active";
+          if (!name) return toast("Employee name required / 请输入员工名字");
+          if (user.id === currentUserId && (role !== "admin" || !isActive)) {
+            return toast("Cannot remove your own admin access / 不能停用当前 admin");
+          }
+          Object.assign(user, {
+            name,
+            email: email || `${name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/(^\\.|\\.$)/g, "") || "employee"}@example.local`,
+            role,
+            is_active: isActive,
+            updated_at: new Date().toISOString()
+          });
+          addAudit(null, "Employee settings updated / 员工设置已更新", { employee: name, role, status: isActive ? "Active" : "Inactive" });
+          saveState();
+          closeModal();
+          toast("Employee updated / 员工已更新");
+          renderAdmin();
+        });
+      });
+    }
+
+    function restoreEmployee(user) {
+      user.is_active = true;
+      delete user.deleted_at;
+      user.updated_at = new Date().toISOString();
+      addAudit(null, "Employee restored / 员工已恢复", { employee: user.name });
+      saveState();
+      toast("Employee restored / 员工已恢复");
+      renderAdmin();
+    }
+
+    function adminEmployeeCard(user) {
+      const claimCount = state.claims.filter(claim => claim.claimant_id === user.id).length;
+      const actionButton = user.is_active ? "" : `<button class="btn primary" data-restore-user="${user.id}">Restore / 恢复</button>`;
+      return `<div class="claim-card">
+        <div class="claim-head">
+          <div>
+            <div class="claim-title">${escapeHtml(user.name)}</div>
+            <div class="claim-meta">${escapeHtml(user.role)} · ${user.is_active ? "Active" : "Deleted / 已删除"} · ${claimCount} claims</div>
+          </div>
+          <div class="employee-actions">
+            <button class="btn" data-edit-user="${user.id}">Settings / 设置</button>
+            ${actionButton}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function renderAdmin() {
+      const activeEmployees = sortedUsers(state.users.filter(user => user.is_active));
+      const deletedEmployees = sortedUsers(state.users.filter(user => !user.is_active));
+      const html = `
+        ${pageHeader("Admin / 设置", "Categories, users and audit trail / 分类、用户和审计记录", `<button class="btn primary" data-add-demo-claims>Add 100 Demo Claims / 加入100张测试单</button><button class="btn" data-reset>Reset Demo Data / 重置演示数据</button>`)}
+        <div class="split">
+          <section class="card section">
+            <h2>Categories / 报销分类</h2>
+            <div class="grid compact-list" id="categoryList">
+              ${state.categories.map(category => `
+                <div class="claim-card">
+                  <div class="claim-head">
+                    <div><div class="claim-title">${escapeHtml(category.name)}</div><div class="claim-meta">${category.is_active ? "Active" : "Inactive"}</div></div>
+                    <button class="btn" data-toggle-cat="${category.id}">${category.is_active ? "Disable" : "Enable"}</button>
+                  </div>
+                </div>`).join("")}
+            </div>
+            <div class="divider"></div>
+            <div class="field"><label>New Category / 新分类</label><input id="newCategory" placeholder="Example: Medical / 医疗"></div>
+            <button class="btn primary" data-add-cat>Add Category / 添加分类</button>
+          </section>
+          <section class="card section">
+            <h2>Employees / 员工名单</h2>
+            <div class="grid">
+              <h3>Active / 使用中</h3>
+              ${activeEmployees.map(adminEmployeeCard).join("") || `<div class="empty"><strong>No active employees / 暂无使用中的员工</strong></div>`}
+              <h3>Deleted / 已删除员工</h3>
+              ${deletedEmployees.map(adminEmployeeCard).join("") || `<div class="empty"><strong>No deleted employees / 暂无已删除员工</strong></div>`}
+            </div>
+            <div class="divider"></div>
+            <div class="form-grid">
+              <div class="field span-2"><label>Employee Name / 员工名字</label><input id="newUserName" placeholder="Example: Mei Ling"></div>
+              <div class="field"><label>Role / 角色</label><select id="newUserRole">
+                <option value="staff">staff</option>
+                <option value="accountant">accountant</option>
+                <option value="admin">admin</option>
+              </select></div>
+            </div>
+            <button class="btn primary" data-add-user>Add Employee / 添加员工</button>
+          </section>
+          <section class="card section">
+            <h2>Audit Trail / 审计记录</h2>
+            ${auditTrailCards()}
+          </section>
+        </div>
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelector("[data-add-demo-claims]").addEventListener("click", () => {
+        openModal(`<h2>Add 100 Demo Claims? / 加入100张测试单？</h2><p class="small-muted">This will add test claims and audit logs to your current demo data.</p><footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="confirmAddDemoClaims">Add 100 / 加入100张</button></footer>`, modal => {
+          modal.querySelector("#confirmAddDemoClaims").addEventListener("click", () => {
+            closeModal();
+            addDemoClaims(100);
+          });
+        });
+      });
+      document.querySelectorAll("[data-audit-filter]").forEach(input => {
+        const updateAuditFilter = () => {
+          auditFilters[input.dataset.auditFilter] = input.value;
+          auditPage = 1;
+          renderAdmin();
+        };
+        input.addEventListener("change", updateAuditFilter);
+        input.addEventListener("keydown", event => {
+          if (event.key === "Enter") updateAuditFilter();
+        });
+      });
+      document.querySelectorAll("[data-audit-page]").forEach(button => {
+        button.addEventListener("click", () => {
+          auditPage += button.dataset.auditPage === "next" ? 1 : -1;
+          renderAdmin();
+        });
+      });
+      document.querySelector("[data-add-cat]").addEventListener("click", () => {
+        const name = document.getElementById("newCategory").value.trim();
+        if (!name) return toast("Category name required / 请输入分类名称");
+        state.categories.push({ id: crypto.randomUUID(), name, is_active: true, sort_order: state.categories.length + 1 });
+        saveState();
+        toast("Category added / 已添加分类");
+        renderAdmin();
+      });
+      document.querySelector("[data-add-user]").addEventListener("click", () => {
+        const name = document.getElementById("newUserName").value.trim();
+        const role = document.getElementById("newUserRole").value;
+        if (!name) return toast("Employee name required / 请输入员工名字");
+        const emailName = name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/(^\\.|\\.$)/g, "") || "employee";
+        state.users.push({
+          id: crypto.randomUUID(),
+          name,
+          email: `${emailName}@example.local`,
+          role,
+          is_active: true
+        });
+        saveState();
+        toast("Employee added / 员工已添加");
+        renderAdmin();
+      });
+      document.querySelectorAll("[data-edit-user]").forEach(button => button.addEventListener("click", () => {
+        const user = state.users.find(item => item.id === button.dataset.editUser);
+        if (user) employeeSettings(user);
+      }));
+      document.querySelectorAll("[data-restore-user]").forEach(button => button.addEventListener("click", () => {
+        const user = state.users.find(item => item.id === button.dataset.restoreUser);
+        if (user) restoreEmployee(user);
+      }));
+      document.querySelectorAll("[data-toggle-cat]").forEach(button => button.addEventListener("click", () => {
+        const category = state.categories.find(item => item.id === button.dataset.toggleCat);
+        category.is_active = !category.is_active;
+        saveState();
+        renderAdmin();
+      }));
+      document.querySelector("[data-reset]").addEventListener("click", () => {
+        openModal(`<h2>Reset Demo Data? / 重置演示资料？</h2><p class="small-muted">This clears local browser data only.</p><footer><button class="btn" data-close>Cancel</button><button class="btn danger" id="confirmReset">Reset</button></footer>`, modal => {
+          modal.querySelector("#confirmReset").addEventListener("click", () => {
+            state = seedState();
+            saveState();
+            closeModal();
+            toast("Demo data reset / 已重置");
+            render();
+          });
+        });
+      });
+    }
+
+    function renderDetail() {
+      const claim = state.claims.find(item => item.id === activeClaimId);
+      if (!claim || !claimVisibleToUser(claim)) {
+        document.getElementById("view").innerHTML = `
+          ${pageHeader("Access Denied / 无权限", "This claim belongs to another staff member / 这张单属于其他员工", `<button class="btn" data-back>Back / 返回</button>`)}
+          <section class="card section">
+            <div class="empty"><strong>Private claim / 员工资料已隔离</strong>Only Accounts and Admin can view all staff claims.</div>
+          </section>
+        `;
+        document.querySelector("[data-back]").addEventListener("click", () => setRoute(detailReturnRoute || "dashboard"));
+        return;
+      }
+      const receipt = claim.attachments.find(file => file.attachment_type === "RECEIPT");
+      const proofs = claim.attachments.filter(file => file.attachment_type === "PURCHASE_PROOF");
+      const audit = state.auditLogs.filter(log => log.claim_id === claim.id);
+      const canEditOwnClaim = !canReview() && claim.claimant_id === currentUser().id && !["APPROVED", "PAID"].includes(claim.status);
+      const actions = [];
+      if (canReview() && claim.status !== "PAID") actions.push(`<button class="btn" data-action="edit">Edit / 编辑</button>`);
+      if (canReview() && ["SUBMITTED", "NEED_REVIEW"].includes(claim.status)) {
+        actions.push(`<button class="btn primary" data-action="approve">Approve / 批准</button>`);
+        actions.push(`<button class="btn warning" data-action="need">Need Review / 需修改</button>`);
+        actions.push(`<button class="btn danger" data-action="reject">Reject / 拒绝</button>`);
+      }
+      if (canReview() && claim.status === "APPROVED") actions.push(`<button class="btn primary" data-action="paid">Mark Paid / 标记付款</button>`);
+      if (canEditOwnClaim) actions.push(`<button class="btn primary" data-action="edit">Edit / 编辑</button>`);
+      const detailActions = `<button class="btn" data-back>Back / 返回</button>${actions.join("")}`;
+      const html = `
+        ${pageHeader(claim.claim_number, canReview() ? "" : "Claim Details / 报销详情", canReview() ? "" : detailActions)}
+        <div class="split">
+          <section class="image-panel">
+            <div class="card section">
+              <h2>Receipt / 收据</h2>
+              ${receipt ? `<a href="${receipt.data_url}" target="_blank" rel="noopener"><img class="receipt-large" src="${receipt.data_url}" alt="Receipt"></a>` : `<div class="empty"><strong>No receipt</strong></div>`}
+            </div>
+            <div class="card section">
+              <h2>Purchase Proof / 实物照片</h2>
+              <div class="preview-grid">${proofs.map(file => attachmentThumb(file)).join("") || `<div class="empty"><strong>No proof photos</strong></div>`}</div>
+            </div>
+          </section>
+          <section class="grid">
+            <div class="card section ${canReview() ? "reviewer-detail" : ""}">
+              <h2>Claim Details / 报销详情</h2>
+              <div class="claim-head">
+                <div>
+                  <h2>${escapeHtml(claim.merchant)}</h2>
+                  <p class="small-muted">${displayDate(claim.purchase_date)} · ${escapeHtml(categoryName(claim.category_id))}</p>
+                </div>
+                <div>${statusBadge(claim.status)}</div>
+              </div>
+              <h1 style="margin:10px 0 4px">${money(claim.claim_amount)}</h1>
+              <p class="small-muted">Receipt total / 收据总额：${money(claim.receipt_total)}</p>
+              ${claim.duplicate_flag ? `<div class="notice warning">Possible duplicate / 可能重复：${escapeHtml(claim.duplicate_message)} ${claim.duplicate_claim_id ? `<button class="btn ghost" data-open="${claim.duplicate_claim_id}">View existing</button>` : ""}${claim.duplicate_override_reason ? `<br>Override: ${escapeHtml(claim.duplicate_override_reason)}` : ""}</div>` : `<div class="notice success">No duplicate flag / 没有重复提示</div>`}
+              <div class="divider"></div>
+              ${kv("Claim By / 申请人", userName(claim.claimant_id))}
+              ${kv("Receipt Number / 收据号码", claim.receipt_number || "-")}
+              ${kv("Claim Amount / 报销金额", money(claim.claim_amount))}
+              ${kv("Approved Amount / 批准金额", claim.approved_amount ? money(claim.approved_amount) : "-")}
+              ${kv("Purpose / 用途", claim.purpose)}
+              ${kv("Remarks / 备注", claim.remarks || "-")}
+              ${kv("Submitted / 提交时间", displayDateTime(claim.submitted_at))}
+              ${kv("AI Check / AI 识别", claim.ai_status === "SCANNED" ? "Detected, human verification required / 已识别，需人工核对" : "Manual entry / 手动输入")}
+              ${claim.payment_reference ? kv("Payment Reference / 付款参考", claim.payment_reference) : ""}
+            </div>
+            ${claim.review_notes.length ? `<div class="card section"><h2>Review Notes / 审核意见</h2>${claim.review_notes.map(note => `<div class="notice warning"><strong>${displayDateTime(note.created_at)}</strong><br>${escapeHtml(note.message)}</div>`).join("")}</div>` : ""}
+            <div class="card section ${canReview() ? "reviewer-timeline" : ""}">
+              <h2>Timeline / 时间线</h2>
+              <ul class="timeline">${audit.map(log => `<li><i></i><div><strong>${escapeHtml(log.action)}</strong><small>${displayDateTime(log.created_at)} · ${escapeHtml(userName(log.actor_id))}</small></div></li>`).join("") || `<li><i></i><div><strong>Claim created</strong></div></li>`}</ul>
+            </div>
+            ${canReview() ? `<div class="card section reviewer-actions"><div class="toolbar">${detailActions}</div></div>` : ""}
+          </section>
+        </div>
+      `;
+      document.getElementById("view").innerHTML = html;
+      document.querySelector("[data-back]").addEventListener("click", () => setRoute(detailReturnRoute || (canReview() ? "review" : "dashboard")));
+      document.querySelector("[data-action='approve']")?.addEventListener("click", () => approveClaim(claim));
+      document.querySelector("[data-action='need']")?.addEventListener("click", () => needReviewClaim(claim));
+      document.querySelector("[data-action='reject']")?.addEventListener("click", () => rejectClaim(claim));
+      document.querySelector("[data-action='paid']")?.addEventListener("click", () => markPaid(claim));
+      document.querySelector("[data-action='edit']")?.addEventListener("click", () => canReview() ? editClaim(claim) : resubmitNeedReview(claim));
+      bindOpenClaim();
+    }
+
+    function kv(label, value) {
+      return `<div class="kv"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
+    }
+
+    function render() {
+      if (isLoggedIn && !state.users.some(user => user.id === currentUserId && user.is_active)) {
+        currentUserId = "u-staff-1";
+        localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
+      }
+      renderShell();
+      if (!isLoggedIn) {
+        renderLogin();
+        return;
+      }
+      const user = currentUser();
+      if (route === "new" && user.role !== "staff") route = "dashboard";
+      if (["review", "toPay", "reports"].includes(route) && !canReview()) route = "dashboard";
+      if (route === "admin" && user.role !== "admin") route = "dashboard";
+      if (route === "dashboard") renderDashboard();
+      if (route === "new") renderNewClaim();
+      if (route === "review") renderReview();
+      if (route === "toPay") renderToPay();
+      if (route === "reports") renderReports();
+      if (route === "admin") renderAdmin();
+      if (route === "detail") renderDetail();
+    }
+
+    document.getElementById("modalBackdrop").addEventListener("click", event => {
+      if (event.target.id === "modalBackdrop") closeModal();
+    });
+    render();
+  </script>
+</body>
+</html>
