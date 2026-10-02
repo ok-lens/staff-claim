@@ -900,6 +900,7 @@
       url: "https://fdxrluknovdrogycoaqz.supabase.co",
       publishableKey: "sb_publishable_msJm7TvexWZqa762PVCorA__fjawYac"
     };
+    const FORMAL_DATA_VERSION = 1;
     const DEMO_YEARS_VERSION = 1;
     const DEMO_OPEN_ITEMS_VERSION = 1;
     const statuses = ["DRAFT", "SUBMITTED", "NEED_REVIEW", "APPROVED", "PAID", "REJECTED"];
@@ -941,9 +942,11 @@
       { id: "admin", label: "Admin 设置", roles: ["admin"] }
     ];
     let state = loadState();
-    migrateDemoUsers();
-    applyDemoClaimYears();
-    applyDemoOpenItemsLimit();
+    if (!state.formal_mode) {
+      migrateDemoUsers();
+      applyDemoClaimYears();
+      applyDemoOpenItemsLimit();
+    }
     let currentUserId = localStorage.getItem("staffClaimsMvp.currentUser") || "u-staff-1";
     let isLoggedIn = localStorage.getItem(AUTH_KEY) === "true";
     let route = "dashboard";
@@ -963,12 +966,14 @@
 
     function seedState() {
       return {
-        users: demoUsers,
+        users: [],
         categories: defaultCategories.map((name, index) => ({ id: "cat-" + (index + 1), name, is_active: true, sort_order: index + 1 })),
         claims: [],
         drafts: {},
         sequence: {},
-        auditLogs: []
+        auditLogs: [],
+        formal_mode: false,
+        formal_data_version: 0
       };
     }
 
@@ -1906,6 +1911,20 @@
       return supabaseClient;
     }
 
+
+    function cleanFormalState(activeUser = null) {
+      const keepUsers = [];
+      if (activeUser) keepUsers.push(activeUser);
+      state.users = keepUsers;
+      state.claims = [];
+      state.drafts = {};
+      state.auditLogs = [];
+      state.sequence = {};
+      state.formal_mode = true;
+      state.formal_data_version = FORMAL_DATA_VERSION;
+      saveState();
+    }
+
     function normalizeProfileRole(role) {
       return role === "boss" ? "admin" : (role || "staff");
     }
@@ -1922,7 +1941,11 @@
       const existingIndex = state.users.findIndex(item => item.id === user.id);
       if (existingIndex >= 0) state.users[existingIndex] = { ...state.users[existingIndex], ...user };
       else state.users.push(user);
-      saveState();
+      if (!state.formal_mode || state.formal_data_version !== FORMAL_DATA_VERSION) {
+        cleanFormalState(user);
+      } else {
+        saveState();
+      }
       return user;
     }
 
@@ -3200,8 +3223,11 @@
 
     function render() {
       if (isLoggedIn && !state.users.some(user => user.id === currentUserId && user.is_active)) {
-        currentUserId = "u-staff-1";
-        localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
+        isLoggedIn = false;
+        localStorage.setItem(AUTH_KEY, "false");
+        localStorage.removeItem("staffClaimsMvp.currentUser");
+        route = "dashboard";
+        activeClaimId = null;
       }
       renderShell();
       if (!isLoggedIn) {
