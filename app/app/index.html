@@ -2231,20 +2231,6 @@
               <div id="loginMessage" class="notice">Use the employee account created in Supabase / 使用 Supabase 建立的员工账号</div>
             </div>
           </section>
-          <section class="card section">
-            <h2>Demo Bypass / 演示入口</h2>
-            <div class="login-options">
-              ${users.map(user => `
-                <button class="login-option" data-login="${user.id}">
-                  <span>
-                    <strong>${escapeHtml(user.name)}</strong>
-                    <span>${escapeHtml(roleAccessText(user.role))}</span>
-                  </span>
-                  <b>${user.id === "u-staff-1" ? "Start / 进入" : "Demo / 演示"}</b>
-                </button>
-              `).join("")}
-            </div>
-          </section>
         </div>
       `;
       document.getElementById("view").innerHTML = html;
@@ -2252,22 +2238,6 @@
       ["loginEmail", "loginPassword"].forEach(id => {
         document.getElementById(id)?.addEventListener("keydown", event => {
           if (event.key === "Enter") signInWithSupabase();
-        });
-      });
-      document.querySelectorAll("[data-login]").forEach(button => {
-        button.addEventListener("click", () => {
-          currentUserId = button.dataset.login;
-          localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
-          localStorage.setItem(AUTH_KEY, "true");
-          isLoggedIn = true;
-          route = "dashboard";
-          activeClaimId = null;
-          reportPeriodFilter = currentMonthKey();
-          staffMonthFilter = "all";
-          payMonthFilter = currentMonthKey();
-          reviewStatusFilter = "SUBMITTED";
-          reviewListVisible = false;
-          render();
         });
       });
     }
@@ -3171,6 +3141,8 @@
   </script>
 </body>
 </html>
+
+
 
 
 
