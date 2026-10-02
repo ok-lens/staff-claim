@@ -2901,7 +2901,7 @@
       const activeEmployees = sortedUsers(state.users.filter(user => user.is_active));
       const deletedEmployees = sortedUsers(state.users.filter(user => !user.is_active));
       const html = `
-        ${pageHeader("Admin / 设置", "Categories, users and audit trail / 分类、用户和审计记录", `<button class="btn primary" data-add-demo-claims>Add 100 Demo Claims / 加入100张测试单</button><button class="btn" data-reset>Reset Demo Data / 重置演示数据</button>`)}
+        ${pageHeader("Admin / 设置", "Categories, users and audit trail / 分类、用户和审计记录", "")}
         <div class="split">
           <section class="card section">
             <h2>Categories / 报销分类</h2>
@@ -2944,14 +2944,6 @@
         </div>
       `;
       document.getElementById("view").innerHTML = html;
-      document.querySelector("[data-add-demo-claims]").addEventListener("click", () => {
-        openModal(`<h2>Add 100 Demo Claims? / 加入100张测试单？</h2><p class="small-muted">This will add test claims and audit logs to your current demo data.</p><footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="confirmAddDemoClaims">Add 100 / 加入100张</button></footer>`, modal => {
-          modal.querySelector("#confirmAddDemoClaims").addEventListener("click", () => {
-            closeModal();
-            addDemoClaims(100);
-          });
-        });
-      });
       document.querySelectorAll("[data-audit-filter]").forEach(input => {
         const updateAuditFilter = () => {
           auditFilters[input.dataset.auditFilter] = input.value;
@@ -3007,17 +2999,6 @@
         saveState();
         renderAdmin();
       }));
-      document.querySelector("[data-reset]").addEventListener("click", () => {
-        openModal(`<h2>Reset Demo Data? / 重置演示资料？</h2><p class="small-muted">This clears local browser data only.</p><footer><button class="btn" data-close>Cancel</button><button class="btn danger" id="confirmReset">Reset</button></footer>`, modal => {
-          modal.querySelector("#confirmReset").addEventListener("click", () => {
-            state = seedState();
-            saveState();
-            closeModal();
-            toast("Demo data reset / 已重置");
-            render();
-          });
-        });
-      });
     }
 
     function renderDetail() {
@@ -3141,6 +3122,7 @@
   </script>
 </body>
 </html>
+
 
 
 
