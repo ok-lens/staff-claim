@@ -1793,6 +1793,101 @@
       setRoute("detail", claim.id);
     }
 
+    function getSupabaseClient() {
+      if (!window.supabase || !window.supabase.createClient) {
+        throw new Error("Supabase SDK not loaded");
+      }
+      if (!supabaseClient) {
+        supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.publishableKey, {
+          auth: { persistSession: true, autoRefreshToken: true }
+        });
+      }
+      return supabaseClient;
+    }
+
+    function normalizeProfileRole(role) {
+      return role === "boss" ? "admin" : (role || "staff");
+    }
+
+    function upsertSessionUser(profile, email) {
+      const role = normalizeProfileRole(profile.role);
+      const user = {
+        id: profile.id,
+        name: profile.full_name || email || "Staff",
+        email: email || "",
+        role,
+        is_active: profile.is_active !== false
+      };
+      const existingIndex = state.users.findIndex(item => item.id === user.id);
+      if (existingIndex >= 0) state.users[existingIndex] = { ...state.users[existingIndex], ...user };
+      else state.users.push(user);
+      saveState();
+      return user;
+    }
+
+    async function loadOrCreateSupabaseProfile(authUser) {
+      const client = getSupabaseClient();
+      let { data: profile, error } = await client
+        .from("profiles")
+        .select("id, full_name, role, is_active")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!profile) {
+        const fullName = (authUser.email || "Staff").split("@")[0];
+        const insert = await client
+          .from("profiles")
+          .insert({ id: authUser.id, full_name: fullName, role: "staff" })
+          .select("id, full_name, role, is_active")
+          .single();
+        if (insert.error) throw insert.error;
+        profile = insert.data;
+      }
+      return upsertSessionUser(profile, authUser.email);
+    }
+
+    function setLoginMessage(message, tone = "") {
+      const target = document.getElementById("loginMessage");
+      if (!target) return;
+      target.className = tone ? `notice ${tone}` : "notice";
+      target.textContent = message;
+    }
+
+    async function signInWithSupabase() {
+      const email = document.getElementById("loginEmail")?.value.trim();
+      const password = document.getElementById("loginPassword")?.value;
+      if (!email || !password) {
+        setLoginMessage("Please enter email and password / 请输入电邮和密码", "warning");
+        return;
+      }
+      const button = document.querySelector("[data-real-login]");
+      if (button) button.disabled = true;
+      setLoginMessage("Signing in / 正在登录...", "warning");
+      try {
+        const client = getSupabaseClient();
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        const user = await loadOrCreateSupabaseProfile(data.user);
+        currentUserId = user.id;
+        localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
+        localStorage.setItem(AUTH_KEY, "true");
+        isLoggedIn = true;
+        route = "dashboard";
+        activeClaimId = null;
+        reportPeriodFilter = currentMonthKey();
+        staffMonthFilter = "all";
+        payMonthFilter = currentMonthKey();
+        reviewStatusFilter = "SUBMITTED";
+        reviewListVisible = false;
+        supabaseSync = { state: "ok", label: "Supabase login active / 正式登录已连接" };
+        render();
+      } catch (error) {
+        console.warn("Login failed", error);
+        setLoginMessage("Login failed / 登录失败：check email or password", "warning");
+      } finally {
+        if (button) button.disabled = false;
+      }
+    }
     function supabaseStatusHtml() {
       const className = supabaseSync.state === "ok" ? "good" : supabaseSync.state === "error" ? "bad" : "";
       return `<div class="sync-status ${className}"><span></span><strong>${escapeHtml(supabaseSync.label)}</strong></div>`;
@@ -2124,23 +2219,41 @@
       const html = `
         <div class="login-page">
           <section class="login-hero">
-            <h1>Staff Claims Demo</h1>
-            <p>Login as Sales A to test staff privacy. Staff can only see their own receipts; Accounts and Admin can see all claims.</p>
+            <h1>Staff Claims</h1>
+            <p>Formal login is ready. Staff use their own email and password; Accounts and Admin can review all claims.</p>
           </section>
-          <section class="login-options">
-            ${users.map(user => `
-              <button class="login-option" data-login="${user.id}">
-                <span>
-                  <strong>${escapeHtml(user.name)}</strong>
-                  <span>${escapeHtml(roleAccessText(user.role))}</span>
-                </span>
-                <b>${user.id === "u-staff-1" ? "Start / 进入" : "Login / 登录"}</b>
-              </button>
-            `).join("")}
+          <section class="card section">
+            <h2>Login / 登录</h2>
+            <div class="form-grid">
+              <div class="field"><label>Email / 电邮</label><input id="loginEmail" type="email" autocomplete="email" placeholder="sales.a@company.com"></div>
+              <div class="field"><label>Password / 密码</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+              <button class="btn primary" data-real-login>Login / 登录</button>
+              <div id="loginMessage" class="notice">Use the employee account created in Supabase / 使用 Supabase 建立的员工账号</div>
+            </div>
+          </section>
+          <section class="card section">
+            <h2>Demo Bypass / 演示入口</h2>
+            <div class="login-options">
+              ${users.map(user => `
+                <button class="login-option" data-login="${user.id}">
+                  <span>
+                    <strong>${escapeHtml(user.name)}</strong>
+                    <span>${escapeHtml(roleAccessText(user.role))}</span>
+                  </span>
+                  <b>${user.id === "u-staff-1" ? "Start / 进入" : "Demo / 演示"}</b>
+                </button>
+              `).join("")}
+            </div>
           </section>
         </div>
       `;
       document.getElementById("view").innerHTML = html;
+      document.querySelector("[data-real-login]").addEventListener("click", signInWithSupabase);
+      ["loginEmail", "loginPassword"].forEach(id => {
+        document.getElementById(id)?.addEventListener("keydown", event => {
+          if (event.key === "Enter") signInWithSupabase();
+        });
+      });
       document.querySelectorAll("[data-login]").forEach(button => {
         button.addEventListener("click", () => {
           currentUserId = button.dataset.login;
@@ -2158,7 +2271,6 @@
         });
       });
     }
-
     function renderDashboard() {
       const user = currentUser();
       const allClaims = visibleClaims();
@@ -3059,5 +3171,6 @@
   </script>
 </body>
 </html>
+
 
 
