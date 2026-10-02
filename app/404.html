@@ -845,7 +845,30 @@
       .sticky-submit .btn { flex: 1; }
       .kv { grid-template-columns: 1fr; gap: 2px; }
     }
+    .sync-status {
+      border: 1px solid rgba(255,255,255,.14);
+      background: #111c34;
+      color: #cbd5e1;
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sync-status span {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #f59e0b;
+      flex: 0 0 auto;
+    }
+    .sync-status.good span { background: #14b8a6; }
+    .sync-status.bad span { background: #ef4444; }
+    .sync-status strong { font-weight: 750; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -873,6 +896,10 @@
   <script>
     const STORAGE_KEY = "staffClaimsMvp.v1";
     const AUTH_KEY = "staffClaimsMvp.loggedIn";
+    const SUPABASE_CONFIG = {
+      url: "https://fdxrluknovdrogycoaqz.supabase.co",
+      publishableKey: "sb_publishable_msJm7TvexWZqa762PVCorA__fjawYac"
+    };
     const DEMO_YEARS_VERSION = 1;
     const DEMO_OPEN_ITEMS_VERSION = 1;
     const statuses = ["DRAFT", "SUBMITTED", "NEED_REVIEW", "APPROVED", "PAID", "REJECTED"];
@@ -931,6 +958,8 @@
     let auditFilters = { search: "", action: "", from: "", to: "" };
     let auditPage = 1;
     const AUDIT_PAGE_SIZE = 20;
+    let supabaseClient = null;
+    let supabaseSync = { state: "checking", label: "Supabase checking / 正在连接" };
 
     function seedState() {
       return {
@@ -1764,6 +1793,34 @@
       setRoute("detail", claim.id);
     }
 
+    function supabaseStatusHtml() {
+      const className = supabaseSync.state === "ok" ? "good" : supabaseSync.state === "error" ? "bad" : "";
+      return `<div class="sync-status ${className}"><span></span><strong>${escapeHtml(supabaseSync.label)}</strong></div>`;
+    }
+
+    async function connectSupabase() {
+      try {
+        if (!window.supabase || !window.supabase.createClient) {
+          throw new Error("Supabase SDK not loaded");
+        }
+        supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.publishableKey, {
+          auth: { persistSession: true, autoRefreshToken: true }
+        });
+        const { data, error } = await supabaseClient
+          .from("claim_categories")
+          .select("id, name_en, name_zh, is_active")
+          .order("name_en", { ascending: true });
+        if (error) throw error;
+        const count = Array.isArray(data) ? data.length : 0;
+        supabaseSync = { state: "ok", label: `Supabase connected / 已连接 · ${count} categories` };
+        state.supabase = { connected_at: new Date().toISOString(), category_count: count };
+        saveState();
+      } catch (error) {
+        supabaseSync = { state: "error", label: "Supabase offline / 未连接" };
+        console.warn("Supabase connection failed", error);
+      }
+      renderShell();
+    }
     function renderShell() {
       const profileBox = document.getElementById("profileBox");
       const nav = document.getElementById("nav");
@@ -3002,4 +3059,5 @@
   </script>
 </body>
 </html>
+
 
