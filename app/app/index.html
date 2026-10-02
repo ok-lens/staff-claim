@@ -1481,6 +1481,105 @@
       return state.claims.filter(claimVisibleToUser);
     }
 
+
+    function isUuid(value) {
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+    }
+
+    function supabaseCategoryId(localCategoryId) {
+      if (isUuid(localCategoryId)) return localCategoryId;
+      const localCategory = state.categories.find(category => category.id === localCategoryId);
+      if (!localCategory) return null;
+      const localName = (localCategory.name || "").split("/")[0].trim().toLowerCase();
+      const remote = (state.supabaseCategories || []).find(category =>
+        (category.name_en || "").trim().toLowerCase() === localName
+      );
+      return remote?.id || null;
+    }
+
+    async function dataUrlToBlob(dataUrl) {
+      const response = await fetch(dataUrl);
+      if (!response.ok) throw new Error("Invalid attachment / 附件无效");
+      return response.blob();
+    }
+
+    function safeStorageName(name) {
+      return String(name || "file").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "file";
+    }
+
+    async function uploadAttachmentToSupabase(client, claim, attachment) {
+      const blob = await dataUrlToBlob(attachment.data_url);
+      const storagePath = `${claim.claimant_id}/${claim.id}/${attachment.id}-${safeStorageName(attachment.original_filename)}`;
+      const { error } = await client.storage
+        .from("claim-receipts")
+        .upload(storagePath, blob, {
+          contentType: attachment.mime_type || blob.type || "application/octet-stream",
+          upsert: false
+        });
+      if (error) throw error;
+      return {
+        claim_id: claim.id,
+        uploaded_by: claim.claimant_id,
+        attachment_type: attachment.attachment_type,
+        storage_bucket: "claim-receipts",
+        storage_path: storagePath,
+        file_name: attachment.original_filename,
+        mime_type: attachment.mime_type || blob.type || "application/octet-stream",
+        file_size: attachment.file_size || blob.size,
+        file_hash: attachment.file_hash || null
+      };
+    }
+
+    async function saveClaimToSupabase(claim) {
+      const client = getSupabaseClient();
+      const { data: authData, error: authError } = await client.auth.getUser();
+      if (authError || !authData?.user) throw new Error("Please login again / 请重新登录");
+      if (authData.user.id !== claim.claimant_id) throw new Error("Login user mismatch / 登录账号不一致");
+      const categoryId = supabaseCategoryId(claim.category_id);
+      if (!categoryId) throw new Error("Category not synced / 分类尚未同步");
+
+      const attachmentRows = [];
+      for (const attachment of claim.attachments) {
+        attachmentRows.push(await uploadAttachmentToSupabase(client, claim, attachment));
+      }
+
+      const { error: claimError } = await client.from("claims").insert({
+        id: claim.id,
+        claim_number: claim.claim_number,
+        claimant_id: claim.claimant_id,
+        category_id: categoryId,
+        merchant: claim.merchant || null,
+        purchase_date: claim.purchase_date,
+        amount: claim.claim_amount,
+        approved_amount: claim.approved_amount,
+        purpose: claim.purpose || null,
+        remarks: claim.remarks || null,
+        status: claim.status,
+        duplicate_flag: claim.duplicate_flag,
+        duplicate_message: claim.duplicate_message || null,
+        duplicate_claim_id: isUuid(claim.duplicate_claim_id) ? claim.duplicate_claim_id : null,
+        payment_reference: claim.payment_reference || null,
+        submitted_at: claim.submitted_at,
+        currency: claim.currency || "MYR",
+        receipt_number: claim.receipt_number || null,
+        receipt_total: claim.receipt_total || claim.claim_amount
+      });
+      if (claimError) throw claimError;
+
+      if (attachmentRows.length) {
+        const { error: attachmentError } = await client.from("claim_attachments").insert(attachmentRows);
+        if (attachmentError) throw attachmentError;
+      }
+
+      const { error: auditError } = await client.from("claim_audit_logs").insert({
+        claim_id: claim.id,
+        actor_id: claim.claimant_id,
+        action: "Claim submitted / 已提交报销",
+        details: { claim_number: claim.claim_number }
+      });
+      if (auditError) console.warn("Audit insert failed", auditError);
+    }
+
     function validateDraft(draft) {
       const errors = [];
       if (!draft.receipt) errors.push("Receipt photo is required / 必须上传收据");
@@ -1492,7 +1591,7 @@
       return errors;
     }
 
-    function submitDraft() {
+    async function submitDraft() {
       const draft = getDraft();
       const errors = validateDraft(draft);
       if (errors.length) {
@@ -1540,6 +1639,8 @@
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+      toast("Uploading claim / 正在上传报销...");
+      await saveClaimToSupabase(claim);
       state.claims.unshift(claim);
       addAudit(claim.id, "Claim submitted / 已提交报销", { claim_number: claim.claim_number });
       if (claim.duplicate_flag) addAudit(claim.id, "Duplicate flagged / 系统标记可能重复", { duplicate_claim_id: claim.duplicate_claim_id, message: claim.duplicate_message });
@@ -1907,6 +2008,7 @@
           .order("name_en", { ascending: true });
         if (error) throw error;
         const count = Array.isArray(data) ? data.length : 0;
+        state.supabaseCategories = Array.isArray(data) ? data : [];
         supabaseSync = { state: "ok", label: `Supabase connected / 已连接 · ${count} categories` };
         state.supabase = { connected_at: new Date().toISOString(), category_count: count };
         saveState();
@@ -2455,10 +2557,19 @@
         toast("Receipt deleted / 收据已删除");
         renderNewClaim();
       });
-      document.querySelector("[data-submit]").addEventListener("click", () => {
+      document.querySelector("[data-submit]").addEventListener("click", async event => {
+        const button = event.currentTarget;
         const editingId = getDraft().editing_claim_id;
-        if (editingId) saveResubmission(editingId);
-        else submitDraft();
+        button.disabled = true;
+        try {
+          if (editingId) saveResubmission(editingId);
+          else await submitDraft();
+        } catch (error) {
+          console.warn("Submit failed", error);
+          toast(error.message || "Submit failed / 提交失败");
+        } finally {
+          button.disabled = false;
+        }
       });
       document.querySelector("[data-save]").addEventListener("click", () => toast("Draft saved / 草稿已保存"));
       document.querySelector("[data-clear]").addEventListener("click", () => {
