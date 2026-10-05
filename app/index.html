@@ -639,7 +639,7 @@
     }
     .steps {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 8px;
       margin: 0 0 16px;
     }
@@ -651,7 +651,7 @@
     .step-pill.active { background: var(--primary); }
     .sticky-submit {
       position: sticky;
-      bottom: 0;
+      bottom: calc(72px + env(safe-area-inset-bottom));
       z-index: 15;
       background: rgba(246,247,248,.92);
       backdrop-filter: blur(10px);
@@ -662,7 +662,13 @@
       justify-content: stretch;
       gap: 10px;
     }
-    .sticky-submit .btn { flex: 1; }
+    .sticky-submit .btn {
+      flex: 1 1 0;
+      min-width: 0;
+      white-space: normal;
+      line-height: 1.35;
+      padding: 8px 10px;
+    }
     .notice {
       border: 1px solid #bfdbfe;
       background: #eff6ff;
@@ -838,11 +844,10 @@
       .mobile-list { display: block; }
       table { min-width: 0; }
       .section { padding: 14px; }
-      .steps { grid-template-columns: repeat(3, 1fr); }
+      .steps { grid-template-columns: repeat(5, 1fr); }
       .sticky-submit {
         justify-content: stretch;
       }
-      .sticky-submit .btn { flex: 1; }
       .kv { grid-template-columns: 1fr; gap: 2px; }
     }
     .sync-status {
@@ -1065,8 +1070,13 @@
       return [...users].sort((a, b) => roleRank(a.role) - roleRank(b.role) || a.name.localeCompare(b.name));
     }
 
+    function categoryLabel(category) {
+      return category.accounting_code ? `${category.accounting_code} · ${category.name}` : category.name;
+    }
+
     function categoryName(id) {
-      return (state.categories.find(category => category.id === id) || {}).name || "-";
+      const category = state.categories.find(category => category.id === id);
+      return category ? categoryLabel(category) : "-";
     }
 
     function escapeHtml(value) {
@@ -1492,14 +1502,46 @@
     }
 
     function supabaseCategoryId(localCategoryId) {
-      if (isUuid(localCategoryId)) return localCategoryId;
       const localCategory = state.categories.find(category => category.id === localCategoryId);
-      if (!localCategory) return null;
-      const localName = (localCategory.name || "").split("/")[0].trim().toLowerCase();
       const remote = (state.supabaseCategories || []).find(category =>
-        (category.name_en || "").trim().toLowerCase() === localName
+        category.id === localCategoryId ||
+        (localCategory && `${category.name_en} / ${category.name_zh}` === localCategory.name)
       );
-      return remote?.id || null;
+      return remote?.is_active ? remote.id : null;
+    }
+
+    async function syncSupabaseCategories(client) {
+      const { data, error } = await client
+        .from("claim_categories")
+        .select("id, name_en, name_zh, accounting_code, is_active")
+        .order("accounting_code", { ascending: true, nullsFirst: false })
+        .order("name_en", { ascending: true });
+      if (error) throw error;
+      const remoteCategories = data || [];
+      const idMap = new Map();
+      state.categories.forEach(local => {
+        const remote = remoteCategories.find(category => category.id === local.id ||
+          `${category.name_en} / ${category.name_zh}` === local.name);
+        if (remote) idMap.set(local.id, remote.id);
+      });
+      // Keep saved drafts and existing claims attached to their original category.
+      [...state.claims, ...Object.values(state.drafts)].forEach(item => {
+        if (idMap.has(item.category_id)) item.category_id = idMap.get(item.category_id);
+      });
+      const referencedIds = new Set([...state.claims, ...Object.values(state.drafts)].map(item => item.category_id));
+      const historicalCategories = state.categories.filter(category =>
+        !idMap.has(category.id) && referencedIds.has(category.id)
+      ).map(category => ({ ...category, is_active: false }));
+      state.supabaseCategories = remoteCategories;
+      state.categories = remoteCategories.map((category, index) => ({
+        id: category.id,
+        name: `${category.name_en} / ${category.name_zh}`,
+        accounting_code: category.accounting_code,
+        is_active: category.is_active,
+        sort_order: index + 1
+      })).concat(historicalCategories);
+      saveState();
+      return remoteCategories;
     }
 
     async function dataUrlToBlob(dataUrl) {
@@ -1540,8 +1582,14 @@
       const { data: authData, error: authError } = await client.auth.getUser();
       if (authError || !authData?.user) throw new Error("Please login again / 请重新登录");
       if (authData.user.id !== claim.claimant_id) throw new Error("Login user mismatch / 登录账号不一致");
+      const selectedCategoryName = state.categories.find(category => category.id === claim.category_id)?.name;
+      await syncSupabaseCategories(client);
+      if (!state.categories.some(category => category.id === claim.category_id)) {
+        claim.category_id = state.categories.find(category => category.name === selectedCategoryName)?.id || claim.category_id;
+      }
       const categoryId = supabaseCategoryId(claim.category_id);
-      if (!categoryId) throw new Error("Category not synced / 分类尚未同步");
+      if (!categoryId) throw new Error("Category unavailable, please select again / 分类不可用，请重新选择");
+      claim.category_id = categoryId;
 
       const attachmentRows = [];
       for (const attachment of claim.attachments) {
@@ -1589,10 +1637,9 @@
       const errors = [];
       if (!draft.receipt) errors.push("Receipt photo is required / 必须上传收据");
       if (!draft.purchase_date) errors.push("Purchase date is required / 必须填写日期");
-      if (!Number(draft.claim_amount)) errors.push("Claim amount is required / 必须填写报销金额");
+      if (!Number.isFinite(Number(draft.claim_amount)) || Number(draft.claim_amount) <= 0) errors.push("Enter a positive claim amount / 请填写大于零的报销金额");
       if (Number(draft.receipt_total) && Number(draft.claim_amount) > Number(draft.receipt_total)) errors.push("Claim amount cannot exceed receipt total / 报销金额不能超过收据总额");
       if (!draft.category_id) errors.push("Category is required / 必须选择分类");
-      if (!draft.proofs.length) errors.push("At least one purchase proof photo is required / 至少上传一张实物照片");
       return errors;
     }
 
@@ -1758,7 +1805,7 @@
       const categoryOptions = state.categories
         .filter(category => category.is_active || category.id === claim.category_id)
         .sort((a, b) => a.sort_order - b.sort_order)
-        .map(category => `<option value="${category.id}" ${claim.category_id === category.id ? "selected" : ""}>${escapeHtml(category.name)}</option>`)
+        .map(category => `<option value="${category.id}" ${claim.category_id === category.id ? "selected" : ""}>${escapeHtml(categoryLabel(category))}</option>`)
         .join("");
       const approvedAmountField = claim.status === "APPROVED"
         ? `<div class="field"><label>Approved Amount / 批准金额</label><input id="editApprovedAmount" type="number" step="0.01" value="${claim.approved_amount || claim.claim_amount}"></div>`
@@ -1997,6 +2044,7 @@
         const { data, error } = await client.auth.signInWithPassword({ email, password });
         if (error) throw error;
         const user = await loadOrCreateSupabaseProfile(data.user);
+        await syncSupabaseCategories(client);
         currentUserId = user.id;
         localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
         localStorage.setItem(AUTH_KEY, "true");
@@ -2027,16 +2075,8 @@
         if (!window.supabase || !window.supabase.createClient) {
           throw new Error("Supabase SDK not loaded");
         }
-        supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.publishableKey, {
-          auth: { persistSession: true, autoRefreshToken: true }
-        });
-        const { data, error } = await supabaseClient
-          .from("claim_categories")
-          .select("id, name_en, name_zh, is_active")
-          .order("name_en", { ascending: true });
-        if (error) throw error;
-        const count = Array.isArray(data) ? data.length : 0;
-        state.supabaseCategories = Array.isArray(data) ? data : [];
+        const data = await syncSupabaseCategories(getSupabaseClient());
+        const count = data.length;
         supabaseSync = { state: "ok", label: `Supabase connected / 已连接 · ${count} categories` };
         state.supabase = { connected_at: new Date().toISOString(), category_count: count };
         saveState();
@@ -2045,6 +2085,7 @@
         console.warn("Supabase connection failed", error);
       }
       renderShell();
+      if (isLoggedIn && ["new", "admin", "detail"].includes(route)) render();
     }
     function renderShell() {
       const profileBox = document.getElementById("profileBox");
@@ -2438,7 +2479,7 @@
       const draft = getDraft();
       const editingClaimId = draft.editing_claim_id;
       const categoryOptions = state.categories.filter(category => category.is_active).sort((a, b) => a.sort_order - b.sort_order).map(category =>
-        `<option value="${category.id}" ${draft.category_id === category.id ? "selected" : ""}>${escapeHtml(category.name)}</option>`
+        `<option value="${category.id}" ${draft.category_id === category.id ? "selected" : ""}>${escapeHtml(categoryLabel(category))}</option>`
       ).join("");
       const receiptPreview = draft.receipt ? attachmentThumb(draft.receipt, true) : "";
       const proofPreview = draft.proofs.map(file => attachmentThumb(file, true)).join("");
@@ -2449,10 +2490,10 @@
       const html = `
         <div class="wizard">
           ${pageHeader(editingClaimId ? "Correct Claim / 修改报销" : "New Claim / 新报销", "Mobile first submission / 手机提交优先", `<button class="btn" data-clear>Clear Draft / 清除草稿</button>`)}
-          <div class="steps">${[1,2,3,4,5,6].map((_, index) => `<div class="step-pill ${index < progressFromDraft(draft) ? "active" : ""}"></div>`).join("")}</div>
+          <div class="steps">${[1,2,3,4,5].map((_, index) => `<div class="step-pill ${index < progressFromDraft(draft) ? "active" : ""}"></div>`).join("")}</div>
           ${draft.ai_status === "SCANNED" ? `<div class="notice success">AI scan completed. Please verify before submit / 已扫描，请提交前核对。</div>` : ""}
           ${duplicateNotice}
-          ${validation.length ? `<div class="notice warning">${escapeHtml(validation[0])}</div>` : `<div class="notice success">Ready to submit / 可以提交</div>`}
+          <div data-draft-validation class="notice ${validation.length ? "warning" : "success"}">${validation.length ? escapeHtml(validation[0]) : "Ready to submit / 可以提交"}</div>
           <section class="card section">
             <h2>Receipt / 收据</h2>
             <div class="upload-box">
@@ -2488,8 +2529,8 @@
 
           <section class="card section">
             <h2>Purchase Proof / 实物照片</h2>
+            <p class="small-muted">Optional / 可选</p>
             <div class="upload-box">
-              <p class="small-muted">Take photos of the actual item purchased. At least one photo is required.</p>
               <div class="upload-actions">
                 <label class="btn primary" for="proofCamera">Take Item Photo / 拍实物</label>
                 <label class="btn" for="proofUpload">Upload Photos / 上传照片</label>
@@ -2502,9 +2543,9 @@
 
           <section class="card section">
             <h2>Claim Summary / 提交确认</h2>
-            <div class="kv"><span>Date / 日期</span><strong>${displayDate(draft.purchase_date)}</strong></div>
+            <div class="kv"><span>Date / 日期</span><strong data-summary-date>${displayDate(draft.purchase_date)}</strong></div>
             ${draft.receipt_total ? `<div class="kv"><span>Receipt Total / 收据总额</span><strong>${money(draft.receipt_total)}</strong></div>` : ""}
-            <div class="kv"><span>Claim Amount / 报销金额</span><strong>${money(draft.claim_amount)}</strong></div>
+            <div class="kv"><span>Claim Amount / 报销金额</span><strong data-summary-amount>${money(draft.claim_amount)}</strong></div>
             <div class="kv"><span>Receipt / 收据</span><strong>${draft.receipt ? "Attached / 已上传" : "Missing / 未上传"}</strong></div>
           </section>
 
@@ -2529,7 +2570,6 @@
       if (draft.receipt) score++;
       if (draft.ai_status === "SCANNED" || draft.claim_amount) score++;
       if (draft.purchase_date && draft.claim_amount) score++;
-      if (draft.proofs.length) score++;
       if (draft.category_id) score++;
       if (!validateDraft(draft).length) score++;
       return score;
@@ -2542,14 +2582,31 @@
       </div>`;
     }
 
+    function updateDraftFeedback() {
+      const draft = getDraft();
+      const errors = validateDraft(draft);
+      const notice = document.querySelector("[data-draft-validation]");
+      notice.className = `notice ${errors.length ? "warning" : "success"}`;
+      notice.textContent = errors[0] || "Ready to submit / 可以提交";
+      document.querySelector("[data-summary-date]").textContent = displayDate(draft.purchase_date);
+      document.querySelector("[data-summary-amount]").textContent = money(draft.claim_amount);
+      document.querySelectorAll(".step-pill").forEach((step, index) => {
+        step.classList.toggle("active", index < progressFromDraft(draft));
+      });
+    }
+
     function bindNewClaim() {
       document.querySelectorAll("[data-field]").forEach(input => {
         input.addEventListener("input", () => {
           const patch = { [input.dataset.field]: input.value };
           if (input.dataset.field === "receipt_total" && !getDraft().claim_amount) patch.claim_amount = input.value;
           updateDraft(patch);
+          updateDraftFeedback();
         });
-        input.addEventListener("change", () => updateDraft({ [input.dataset.field]: input.value }));
+        input.addEventListener("change", () => {
+          updateDraft({ [input.dataset.field]: input.value });
+          updateDraftFeedback();
+        });
       });
       const handleReceipt = async event => {
         const file = event.target.files[0];
@@ -3048,13 +3105,14 @@
               ${state.categories.map(category => `
                 <div class="claim-card">
                   <div class="claim-head">
-                    <div><div class="claim-title">${escapeHtml(category.name)}</div><div class="claim-meta">${category.is_active ? "Active" : "Inactive"}</div></div>
+                    <div><div class="claim-title">${escapeHtml(categoryLabel(category))}</div><div class="claim-meta">${category.is_active ? "Active" : "Inactive"}</div></div>
                     <button class="btn" data-toggle-cat="${category.id}">${category.is_active ? "Disable" : "Enable"}</button>
                   </div>
                 </div>`).join("")}
             </div>
             <div class="divider"></div>
             <div class="field"><label>New Category / 新分类</label><input id="newCategory" placeholder="Example: Medical / 医疗"></div>
+            <div class="field"><label>Code / 会计代号</label><input id="newCategoryCode" placeholder="919-0000" pattern="[0-9]{3}-[0-9]{4}" maxlength="8"></div>
             <button class="btn primary" data-add-cat>Add Category / 添加分类</button>
           </section>
           <section class="card section">
@@ -3100,13 +3158,31 @@
           renderAdmin();
         });
       });
-      document.querySelector("[data-add-cat]").addEventListener("click", () => {
+      document.querySelector("[data-add-cat]").addEventListener("click", async event => {
         const name = document.getElementById("newCategory").value.trim();
+        const accountingCode = document.getElementById("newCategoryCode").value.trim();
         if (!name) return toast("Category name required / 请输入分类名称");
-        state.categories.push({ id: crypto.randomUUID(), name, is_active: true, sort_order: state.categories.length + 1 });
-        saveState();
-        toast("Category added / 已添加分类");
-        renderAdmin();
+        if (accountingCode && !/^\d{3}-\d{4}$/.test(accountingCode)) return toast("Code format: 919-0000 / 代号格式：919-0000");
+        const separator = name.lastIndexOf(" / ");
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+          const client = getSupabaseClient();
+          const { error } = await client.from("claim_categories").insert({
+            name_en: separator < 0 ? name : name.slice(0, separator).trim(),
+            name_zh: separator < 0 ? name : name.slice(separator + 3).trim(),
+            accounting_code: accountingCode || null,
+            is_active: true
+          });
+          if (error) throw error;
+          await syncSupabaseCategories(client);
+          toast("Category added / 已添加分类");
+          renderAdmin();
+        } catch (error) {
+          toast(error.code === "23505" ? "Category name or code already exists / 分类名称或代号已存在" : (error.message || "Save failed / 保存失败"));
+        } finally {
+          button.disabled = false;
+        }
       });
       document.querySelector("[data-add-user]").addEventListener("click", () => {
         const name = document.getElementById("newUserName").value.trim();
@@ -3132,11 +3208,21 @@
         const user = state.users.find(item => item.id === button.dataset.restoreUser);
         if (user) restoreEmployee(user);
       }));
-      document.querySelectorAll("[data-toggle-cat]").forEach(button => button.addEventListener("click", () => {
+      document.querySelectorAll("[data-toggle-cat]").forEach(button => button.addEventListener("click", async () => {
         const category = state.categories.find(item => item.id === button.dataset.toggleCat);
-        category.is_active = !category.is_active;
-        saveState();
-        renderAdmin();
+        button.disabled = true;
+        try {
+          const client = getSupabaseClient();
+          const { data, error } = await client.from("claim_categories")
+            .update({ is_active: !category.is_active }).eq("id", category.id).select("id").single();
+          if (error || !data) throw error || new Error("Save failed / 保存失败");
+          await syncSupabaseCategories(client);
+          renderAdmin();
+        } catch (error) {
+          toast(error.message || "Save failed / 保存失败");
+        } finally {
+          button.disabled = false;
+        }
       }));
     }
 
@@ -3256,6 +3342,7 @@
       if (event.target.id === "modalBackdrop") closeModal();
     });
     render();
+    connectSupabase();
   </script>
   <script>
     if ("serviceWorker" in navigator) {
