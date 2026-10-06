@@ -354,6 +354,25 @@
       padding: 0 12px;
       font-size: 13px;
     }
+    #categoryList .claim-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 84px 70px;
+      gap: 8px;
+      align-items: start;
+    }
+    #categoryList .category-name { min-width: 0; overflow-wrap: anywhere; }
+    #categoryList .category-code {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      font-size: 13px;
+      line-height: 1.25;
+      padding-top: 1px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    #categoryList .btn { width: 70px; padding: 0 6px; }
     .report-row {
       display: grid;
       gap: 8px;
@@ -1071,7 +1090,7 @@
     }
 
     function categoryLabel(category) {
-      return category.accounting_code ? `${category.accounting_code} · ${category.name}` : category.name;
+      return category.accounting_code ? `${category.name} · ${category.accounting_code}` : category.name;
     }
 
     function categoryName(id) {
@@ -1531,7 +1550,7 @@
       const referencedIds = new Set([...state.claims, ...Object.values(state.drafts)].map(item => item.category_id));
       const historicalCategories = state.categories.filter(category =>
         !idMap.has(category.id) && referencedIds.has(category.id)
-      ).map(category => ({ ...category, is_active: false }));
+      ).map(category => ({ ...category, is_active: false, historical_only: true }));
       state.supabaseCategories = remoteCategories;
       state.categories = remoteCategories.map((category, index) => ({
         id: category.id,
@@ -3102,10 +3121,11 @@
           <section class="card section">
             <h2>Categories / 报销分类</h2>
             <div class="grid compact-list" id="categoryList">
-              ${state.categories.map(category => `
+              ${state.categories.filter(category => !category.historical_only).map(category => `
                 <div class="claim-card">
                   <div class="claim-head">
-                    <div><div class="claim-title">${escapeHtml(categoryLabel(category))}</div><div class="claim-meta">${category.is_active ? "Active" : "Inactive"}</div></div>
+                    <div class="category-name"><div class="claim-title">${escapeHtml(category.name)}</div><div class="claim-meta">${category.is_active ? "Active" : "Inactive"}</div></div>
+                    <div class="category-code">${category.accounting_code ? `<span aria-hidden="true">·</span><span>${escapeHtml(category.accounting_code)}</span>` : ""}</div>
                     <button class="btn" data-toggle-cat="${category.id}">${category.is_active ? "Disable" : "Enable"}</button>
                   </div>
                 </div>`).join("")}
