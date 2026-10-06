@@ -92,11 +92,11 @@ function mockSdk() {
   try {
     const admin = await pageFor("admin");
     await admin.locator('[data-route="admin"]').click();
-    assert.equal(await admin.locator("#newUserPassword").getAttribute("minlength"), "8");
+    assert.equal(await admin.locator("#newUserPassword").getAttribute("minlength"), "6");
     assert.equal(await admin.locator("#newUserPassword").getAttribute("maxlength"), "14");
     await admin.locator("#newUserPassword").fill("abcdefgh");
     assert.equal(await admin.locator("#newUserPassword").evaluate(input => input.checkValidity()), false);
-    await admin.locator("#newUserPassword").fill("Abcd1234");
+    await admin.locator("#newUserPassword").fill("Ab1234");
     assert.equal(await admin.locator("#newUserPassword").evaluate(input => input.checkValidity()), true);
     await admin.locator("#newUserName").fill("Mei Ling");
     await admin.locator("#newUserEmail").fill("meiling@example.com");

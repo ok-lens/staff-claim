@@ -2080,7 +2080,7 @@
       email_exists: "Email already registered / 这个电邮已注册",
       invalid_input: "Check name, email and role / 请检查名字、电邮和角色",
       invalid_password: "Use 10–128 characters with letters and numbers / 密码需10–128位，包含字母和数字，且不能与旧密码相同",
-      invalid_temporary_password: "Use 8–14 characters with letters and numbers / 临时密码需8–14位，包含字母和数字",
+      invalid_temporary_password: "Use 6–14 characters with letters and numbers / 临时密码需6–14位，包含字母和数字",
       wrong_password: "Current password is incorrect / 当前密码不正确",
       own_admin_required: "Cannot remove your own admin access / 不能停用当前管理员",
       employee_not_found: "Employee not found / 找不到员工",
@@ -3289,8 +3289,8 @@
             <form id="employeeForm" class="form-grid">
               <div class="field span-2"><label for="newUserName">Employee Name / 员工名字</label><input id="newUserName" required maxlength="100" placeholder="Mei Ling"></div>
               <div class="field span-2"><label for="newUserEmail">Email / 电邮</label><input id="newUserEmail" type="email" required maxlength="254" autocomplete="off" placeholder="meiling@company.com"></div>
-              <div class="field span-2"><label for="newUserPassword">Temporary Password / 临时密码</label><input id="newUserPassword" type="password" required minlength="8" maxlength="14" pattern="(?=.*[a-zA-Z])(?=.*[0-9]).{8,14}" title="8–14 characters, letters and numbers / 8–14位，包含字母和数字" autocomplete="new-password"></div>
-              <div class="small-muted span-2">8–14 characters, letters and numbers / 8–14位，包含字母和数字</div>
+              <div class="field span-2"><label for="newUserPassword">Temporary Password / 临时密码</label><input id="newUserPassword" type="password" required minlength="6" maxlength="14" pattern="(?=.*[a-zA-Z])(?=.*[0-9]).{6,14}" title="6–14 characters, letters and numbers / 6–14位，包含字母和数字" autocomplete="new-password"></div>
+              <div class="small-muted span-2">6–14 characters, letters and numbers / 6–14位，包含字母和数字</div>
               <div class="field"><label for="newUserRole">Role / 角色</label><select id="newUserRole">
                 <option value="staff">staff</option>
                 <option value="accountant">accountant</option>

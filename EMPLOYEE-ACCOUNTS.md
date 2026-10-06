@@ -1,7 +1,7 @@
 # Employee Accounts
 
 1. Sign in as Admin. Open Admin > Employees.
-2. Enter name, a unique email, temporary password (8-14 characters with letters and numbers), and role. Staff is the default.
+2. Enter name, a unique email, temporary password (6-14 characters with letters and numbers), and role. Staff is the default. Supabase Email provider minimum password length must be 6 to accept 6-7 character temporary passwords; an 8+ character password is still recommended. Personal passwords retain the stronger 10-128 character policy.
 3. Add Employee creates the real Supabase Auth account and its company profile. Give the employee the email and temporary password privately.
 4. First login requires the employee to replace the temporary password. Claims and receipts remain inaccessible until that step is complete.
 5. Employee Settings persists names, emails, roles and active status. Inactive accounts cannot access claims. Restore enables the existing account; it does not create a duplicate or change its password.

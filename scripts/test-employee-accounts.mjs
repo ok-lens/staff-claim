@@ -55,13 +55,13 @@ function fixture(overrides = {}) {
   return { calls, request };
 }
 const create = { action: "create", name: "New Staff", email: "new@example.com", password: TEMP, role: "staff" };
-for (const password of ["Abcd1234", "Abcdefgh123456"]) {
+for (const password of ["Ab1234", "Abcd123", "Abcd1234", "Abcdefgh123456"]) {
   test(`temporary password accepts ${password.length}-character boundary`, async () => {
     const f = fixture();
     assert.equal((await f.request({ ...create, password })).status, 201);
   });
 }
-for (const password of ["Abcd123", "Abcdefgh1234567", "abcdefgh", "12345678"]) {
+for (const password of ["Ab123", "Abcdefgh1234567", "abcdef", "123456"]) {
   test(`temporary password rejects invalid length/composition (${password.length} characters)`, async () => {
     const f = fixture();
     const response = await f.request({ ...create, password });
