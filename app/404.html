@@ -100,6 +100,7 @@
       color: #f8fafc;
       font-weight: 750;
       font-size: 15px;
+      overflow-wrap: anywhere;
     }
     .profile-switcher .session-role {
       color: #a6b3c2;
@@ -113,6 +114,9 @@
       border-color: rgba(255,255,255,.14);
       color: #f8fafc;
     }
+    .session-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .session-actions .btn { flex: 1; font-size: 12px; padding: 6px 8px; }
+    .employee-email { overflow-wrap: anywhere; }
     .nav {
       position: fixed;
       left: 50%;
@@ -973,6 +977,10 @@
     }
     let currentUserId = localStorage.getItem("staffClaimsMvp.currentUser") || "u-staff-1";
     let isLoggedIn = localStorage.getItem(AUTH_KEY) === "true";
+    let sessionChecking = true;
+    let currentAuthUser = null;
+    let mustChangePassword = false;
+    let loginBusy = false;
     let route = "dashboard";
     let activeClaimId = null;
     let detailReturnRoute = "dashboard";
@@ -1992,9 +2000,7 @@
     function cleanFormalState(users = []) {
       state.users = users;
       state.claims = state.claims.filter(claim => isUuid(claim.id) && isUuid(claim.claimant_id));
-      state.drafts = {};
       state.auditLogs = state.auditLogs.filter(log => !log.claim_id || isUuid(log.claim_id));
-      state.sequence = {};
       state.formal_mode = true;
       state.formal_data_version = FORMAL_DATA_VERSION;
       saveState();
@@ -2008,7 +2014,7 @@
       return {
         id: profile.id,
         name: profile.full_name || email || "Staff",
-        email,
+        email: profile.email || email,
         role: normalizeProfileRole(profile.role),
         is_active: profile.is_active !== false
       };
@@ -2020,36 +2026,132 @@
       if (["accountant", "admin"].includes(activeUser.role)) {
         const { data, error } = await client
           .from("profiles")
-          .select("id, full_name, role, is_active")
+          .select("id, full_name, email, role, is_active")
           .order("full_name", { ascending: true });
-        if (!error && Array.isArray(data)) {
-          users = data.map(profile => profileToUser(profile));
-        }
+        if (error) throw error;
+        if (Array.isArray(data)) users = data.map(profile => profileToUser(profile));
       }
       const uniqueUsers = Array.from(new Map(users.filter(user => isUuid(user.id)).map(user => [user.id, user])).values());
       cleanFormalState(uniqueUsers);
       return uniqueUsers.find(user => user.id === activeUser.id) || activeUser;
     }
 
-    async function loadOrCreateSupabaseProfile(authUser) {
+    async function loadSupabaseProfile(authUser) {
       const client = getSupabaseClient();
-      let { data: profile, error } = await client
+      const { data: profile, error } = await client
         .from("profiles")
-        .select("id, full_name, role, is_active")
+        .select("id, full_name, email, role, is_active")
         .eq("id", authUser.id)
         .maybeSingle();
       if (error) throw error;
-      if (!profile) {
-        const fullName = (authUser.email || "Staff").split("@")[0];
-        const insert = await client
-          .from("profiles")
-          .insert({ id: authUser.id, full_name: fullName, role: "staff" })
-          .select("id, full_name, role, is_active")
-          .single();
-        if (insert.error) throw insert.error;
-        profile = insert.data;
-      }
+      if (!profile?.is_active) throw new Error("Account not enabled / 账号未启用，请联系管理员");
+      currentAuthUser = authUser;
+      mustChangePassword = authUser.app_metadata?.must_change_password === true;
       return syncSupabaseUsers(client, profile, authUser.email);
+    }
+
+    function clearLogin() {
+      isLoggedIn = false;
+      currentAuthUser = null;
+      mustChangePassword = false;
+      localStorage.setItem(AUTH_KEY, "false");
+      localStorage.removeItem("staffClaimsMvp.currentUser");
+      route = "dashboard";
+      activeClaimId = null;
+      closeModal();
+    }
+
+    async function logout() {
+      try {
+        const { error } = await getSupabaseClient().auth.signOut({ scope: "local" });
+        if (error) throw error;
+        clearLogin();
+        render();
+      } catch {
+        toast("Logout failed / 登出失败，请检查网络后重试");
+      }
+    }
+
+    const employeeErrors = {
+      unauthorized: "Session expired / 登录已过期，请重新登录",
+      account_inactive: "Account not enabled / 账号未启用",
+      admin_required: "Admin only / 只有管理员可以处理员工账号",
+      password_change_required: "Change your password first / 请先修改密码",
+      email_exists: "Email already registered / 这个电邮已注册",
+      invalid_input: "Check name, email and role / 请检查名字、电邮和角色",
+      invalid_password: "Use 10–128 characters with letters and numbers / 密码需10–128位，包含字母和数字，且不能与旧密码相同",
+      wrong_password: "Current password is incorrect / 当前密码不正确",
+      own_admin_required: "Cannot remove your own admin access / 不能停用当前管理员",
+      employee_not_found: "Employee not found / 找不到员工",
+      account_cleanup_required: "Account needs administrator support / 账号保存未完成，请联系管理员，不要重复开户",
+      account_create_failed: "Account creation failed / 开户失败，请检查电邮和密码后重试",
+      account_update_failed: "Employee update failed / 员工资料更新失败",
+      password_update_failed: "Password rejected / 密码未通过安全检查，请换一个再试"
+    };
+
+    async function employeeAccountRequest(body) {
+      const { data, error } = await getSupabaseClient().functions.invoke("employee-accounts", { body });
+      if (error) {
+        let details;
+        try { details = await error.context?.json(); } catch {}
+        throw new Error(employeeErrors[details?.code] || "Unable to save / 无法保存，请检查网络后重试");
+      }
+      return data;
+    }
+
+    function renderPasswordChange() {
+      document.getElementById("view").innerHTML = `
+        ${pageHeader(mustChangePassword ? "Set Your Password / 设置自己的密码" : "Change Password / 修改密码", escapeHtml(currentUser().name))}
+        <section class="card section">
+          <form id="passwordForm" class="form-grid">
+            <div class="field span-2"><label for="currentPassword">Current Password / 当前密码</label><input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128"></div>
+            <div class="field"><label for="newPassword">New Password / 新密码</label><input id="newPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></div>
+            <div class="field"><label for="confirmPassword">Confirm Password / 确认新密码</label><input id="confirmPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></div>
+            <div class="small-muted span-2">10–128 characters, letters and numbers / 10–128位，包含字母和数字</div>
+            <div id="passwordMessage" class="notice span-2" role="status">${mustChangePassword ? "Temporary password / 请把公司提供的临时密码改成自己的密码" : ""}</div>
+            <div class="toolbar span-2">${mustChangePassword ? "" : '<button class="btn" type="button" id="cancelPassword">Cancel / 取消</button>'}<button class="btn primary" type="submit" data-password-save>Save Password / 保存密码</button></div>
+          </form>
+        </section>`;
+      document.getElementById("cancelPassword")?.addEventListener("click", () => setRoute("dashboard"));
+      document.getElementById("passwordForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        const button = document.querySelector("[data-password-save]");
+        if (button.disabled) return;
+        const password = document.getElementById("newPassword").value;
+        const message = document.getElementById("passwordMessage");
+        if (password !== document.getElementById("confirmPassword").value) {
+          message.textContent = "Passwords do not match / 两次新密码不一致";
+          return;
+        }
+        button.disabled = true;
+        message.textContent = "Saving / 正在保存...";
+        let passwordSaved = false;
+        try {
+          await employeeAccountRequest({ action: "change-password", current_password: document.getElementById("currentPassword").value, password });
+          passwordSaved = true;
+          document.getElementById("passwordForm").reset();
+          const client = getSupabaseClient();
+          const refreshed = await client.auth.refreshSession();
+          if (refreshed.error) throw refreshed.error;
+          const verified = await client.auth.getUser();
+          if (verified.error || !verified.data.user) throw new Error("Session expired");
+          await loadSupabaseProfile(verified.data.user);
+          route = "dashboard";
+          toast("Password updated / 密码已更新");
+          render();
+        } catch (error) {
+          if (passwordSaved) {
+            await getSupabaseClient().auth.signOut({ scope: "local" }).catch(() => {});
+            clearLogin();
+            render();
+            setLoginMessage("Password saved / 密码已更新，请用新密码重新登录");
+          } else {
+            message.textContent = error.message || "Save failed / 保存失败，请重试";
+          }
+        } finally {
+          button.disabled = false;
+        }
+      });
     }
 
     function setLoginMessage(message, tone = "") {
@@ -2060,6 +2162,7 @@
     }
 
     async function signInWithSupabase() {
+      if (loginBusy) return;
       const email = document.getElementById("loginEmail")?.value.trim();
       const password = document.getElementById("loginPassword")?.value;
       if (!email || !password) {
@@ -2067,13 +2170,14 @@
         return;
       }
       const button = document.querySelector("[data-real-login]");
+      loginBusy = true;
       if (button) button.disabled = true;
       setLoginMessage("Signing in / 正在登录...", "warning");
       try {
         const client = getSupabaseClient();
         const { data, error } = await client.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        const user = await loadOrCreateSupabaseProfile(data.user);
+        const user = await loadSupabaseProfile(data.user);
         await syncSupabaseCategories(client);
         currentUserId = user.id;
         localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
@@ -2089,9 +2193,11 @@
         supabaseSync = { state: "ok", label: "Supabase login active / 正式登录已连接" };
         render();
       } catch (error) {
-        console.warn("Login failed", error);
-        setLoginMessage("Login failed / 登录失败：check email or password", "warning");
+        await supabaseClient?.auth.signOut({ scope: "local" }).catch(() => {});
+        clearLogin();
+        setLoginMessage(error.message?.startsWith("Account not enabled") ? error.message : "Login failed / 登录失败：请检查电邮、密码和网络", "warning");
       } finally {
+        loginBusy = false;
         if (button) button.disabled = false;
       }
     }
@@ -2105,24 +2211,35 @@
         if (!window.supabase || !window.supabase.createClient) {
           throw new Error("Supabase SDK not loaded");
         }
-        const data = await syncSupabaseCategories(getSupabaseClient());
+        const client = getSupabaseClient();
+        const { data: auth, error } = await client.auth.getUser();
+        if (!error && auth.user) {
+          const user = await loadSupabaseProfile(auth.user);
+          currentUserId = user.id;
+          isLoggedIn = true;
+          localStorage.setItem(AUTH_KEY, "true");
+          localStorage.setItem("staffClaimsMvp.currentUser", user.id);
+        } else {
+          clearLogin();
+        }
+        const data = await syncSupabaseCategories(client);
         const count = data.length;
         supabaseSync = { state: "ok", label: `Supabase connected / 已连接 · ${count} categories` };
         state.supabase = { connected_at: new Date().toISOString(), category_count: count };
         saveState();
       } catch (error) {
+        clearLogin();
         supabaseSync = { state: "error", label: "Supabase offline / 未连接" };
-        console.warn("Supabase connection failed", error);
       }
-      renderShell();
-      if (isLoggedIn && ["new", "admin", "detail"].includes(route)) render();
+      sessionChecking = false;
+      render();
     }
     function renderShell() {
       const profileBox = document.getElementById("profileBox");
       const nav = document.getElementById("nav");
-      document.querySelector(".main").classList.toggle("login-main", !isLoggedIn);
-      if (!isLoggedIn) {
-        profileBox.innerHTML = `<label>Demo Login / 模拟登录</label><div class="session-role">Choose one account to enter / 选择账号进入</div>`;
+      document.querySelector(".main").classList.toggle("login-main", !isLoggedIn || sessionChecking);
+      if (!isLoggedIn || sessionChecking) {
+        profileBox.innerHTML = `<label>Staff Claims</label><div class="session-role">Company Account / 公司账号</div>`;
         nav.innerHTML = "";
         return;
       }
@@ -2134,15 +2251,17 @@
           <div class="session-name">${escapeHtml(currentUser().name)}</div>
           <div class="session-role">${escapeHtml(currentUser().role)} · ${canReview() ? "Can view all claims / 可看全部" : "Own claims only / 只看自己"}</div>
         </div>
-        <button class="btn" data-logout>Logout / 登出</button>
+        <div class="session-actions">
+          ${mustChangePassword ? "" : '<button class="btn" data-change-password>Change Password / 修改密码</button>'}
+          <button class="btn" data-logout>Logout / 登出</button>
+        </div>
       `;
-      profileBox.querySelector("[data-logout]").addEventListener("click", () => {
-        isLoggedIn = false;
-        localStorage.setItem(AUTH_KEY, "false");
-        route = "dashboard";
-        activeClaimId = null;
-        render();
-      });
+      profileBox.querySelector("[data-logout]").addEventListener("click", logout);
+      profileBox.querySelector("[data-change-password]")?.addEventListener("click", () => setRoute("password"));
+      if (mustChangePassword) {
+        nav.innerHTML = "";
+        return;
+      }
       nav.innerHTML = navItems.filter(item => item.roles.includes(userRole)).map(item =>
         `<button class="${route === item.id ? "active" : ""}" data-route="${item.id}"><span class="dot"></span>${item.label}</button>`
       ).join("");
@@ -2429,7 +2548,7 @@
               <div class="field"><label>Email / 电邮</label><input id="loginEmail" type="email" autocomplete="email" placeholder="sales.a@company.com"></div>
               <div class="field"><label>Password / 密码</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
               <button class="btn primary" data-real-login>Login / 登录</button>
-              <div id="loginMessage" class="notice">Use the employee account created in Supabase / 使用 Supabase 建立的员工账号</div>
+              <div id="loginMessage" class="notice">Company account / 使用公司提供的电邮和密码</div>
             </div>
           </section>
         </div>
@@ -3059,7 +3178,7 @@
       openModal(`
         <h2>Employee Settings / 员工设置</h2>
         <div class="field"><label>Name / 名字</label><input id="editUserName" value="${escapeHtml(user.name)}"></div>
-        <div class="field"><label>Email / 电邮</label><input id="editUserEmail" value="${escapeHtml(user.email || "")}"></div>
+        <div class="field"><label>Email / 电邮</label><input id="editUserEmail" type="email" value="${escapeHtml(user.email || "")}"></div>
         <div class="field"><label>Role / 角色</label><select id="editUserRole">
           <option value="staff" ${user.role === "staff" ? "selected" : ""}>staff</option>
           <option value="accountant" ${user.role === "accountant" ? "selected" : ""}>accountant</option>
@@ -3069,9 +3188,10 @@
           <option value="active" ${user.is_active ? "selected" : ""}>Active / 启用</option>
           <option value="inactive" ${!user.is_active ? "selected" : ""}>Inactive / 停用</option>
         </select></div>
+        <div id="employeeSettingsMessage" class="notice" role="status"></div>
         <footer><button class="btn" data-close>Cancel / 取消</button><button class="btn primary" id="saveUserSettings">Save / 保存</button></footer>
       `, modal => {
-        modal.querySelector("#saveUserSettings").addEventListener("click", () => {
+        modal.querySelector("#saveUserSettings").addEventListener("click", async event => {
           const name = modal.querySelector("#editUserName").value.trim();
           const email = modal.querySelector("#editUserEmail").value.trim();
           const role = modal.querySelector("#editUserRole").value;
@@ -3080,30 +3200,39 @@
           if (user.id === currentUserId && (role !== "admin" || !isActive)) {
             return toast("Cannot remove your own admin access / 不能停用当前 admin");
           }
-          Object.assign(user, {
-            name,
-            email: email || `${name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/(^\\.|\\.$)/g, "") || "employee"}@example.local`,
-            role,
-            is_active: isActive,
-            updated_at: new Date().toISOString()
-          });
-          addAudit(null, "Employee settings updated / 员工设置已更新", { employee: name, role, status: isActive ? "Active" : "Inactive" });
-          saveState();
-          closeModal();
-          toast("Employee updated / 员工已更新");
-          renderAdmin();
+          const button = event.currentTarget;
+          if (button.disabled) return;
+          button.disabled = true;
+          try {
+            const result = await employeeAccountRequest({ action: "update", id: user.id, name, email, role, is_active: isActive });
+            Object.assign(user, profileToUser(result.profile));
+            saveState();
+            closeModal();
+            toast("Employee updated / 员工资料已保存");
+            render();
+          } catch (error) {
+            modal.querySelector("#employeeSettingsMessage").textContent = error.message;
+          } finally {
+            button.disabled = false;
+          }
         });
       });
     }
 
-    function restoreEmployee(user) {
-      user.is_active = true;
-      delete user.deleted_at;
-      user.updated_at = new Date().toISOString();
-      addAudit(null, "Employee restored / 员工已恢复", { employee: user.name });
-      saveState();
-      toast("Employee restored / 员工已恢复");
-      renderAdmin();
+    async function restoreEmployee(user, button) {
+      button.disabled = true;
+      try {
+        const result = await employeeAccountRequest({ action: "update", id: user.id, name: user.name, email: user.email, role: user.role, is_active: true });
+        Object.assign(user, profileToUser(result.profile));
+        delete user.deleted_at;
+        saveState();
+        toast("Employee enabled / 员工已启用");
+        render();
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        button.disabled = false;
+      }
     }
 
     function adminEmployeeCard(user) {
@@ -3113,7 +3242,8 @@
         <div class="claim-head">
           <div>
             <div class="claim-title">${escapeHtml(user.name)}</div>
-            <div class="claim-meta">${escapeHtml(user.role)} · ${user.is_active ? "Active" : "Deleted / 已删除"} · ${claimCount} claims</div>
+            <div class="claim-meta employee-email">${escapeHtml(user.email || "")}</div>
+            <div class="claim-meta">${escapeHtml(user.role)} · ${user.is_active ? "Active" : "Inactive / 已停用"} · ${claimCount} claims</div>
           </div>
           <div class="employee-actions">
             <button class="btn" data-edit-user="${user.id}">Settings / 设置</button>
@@ -3151,19 +3281,23 @@
             <div class="grid">
               <h3>Active / 使用中</h3>
               ${activeEmployees.map(adminEmployeeCard).join("") || `<div class="empty"><strong>No active employees / 暂无使用中的员工</strong></div>`}
-              <h3>Deleted / 已删除员工</h3>
-              ${deletedEmployees.map(adminEmployeeCard).join("") || `<div class="empty"><strong>No deleted employees / 暂无已删除员工</strong></div>`}
+              <h3>Inactive / 已停用员工</h3>
+              ${deletedEmployees.map(adminEmployeeCard).join("") || `<div class="empty"><strong>No inactive employees / 暂无已停用员工</strong></div>`}
             </div>
             <div class="divider"></div>
-            <div class="form-grid">
-              <div class="field span-2"><label>Employee Name / 员工名字</label><input id="newUserName" placeholder="Example: Mei Ling"></div>
-              <div class="field"><label>Role / 角色</label><select id="newUserRole">
+            <form id="employeeForm" class="form-grid">
+              <div class="field span-2"><label for="newUserName">Employee Name / 员工名字</label><input id="newUserName" required maxlength="100" placeholder="Mei Ling"></div>
+              <div class="field span-2"><label for="newUserEmail">Email / 电邮</label><input id="newUserEmail" type="email" required maxlength="254" autocomplete="off" placeholder="meiling@company.com"></div>
+              <div class="field span-2"><label for="newUserPassword">Temporary Password / 临时密码</label><input id="newUserPassword" type="password" required minlength="10" maxlength="128" autocomplete="new-password"></div>
+              <div class="small-muted span-2">10–128 characters, letters and numbers / 10–128位，包含字母和数字</div>
+              <div class="field"><label for="newUserRole">Role / 角色</label><select id="newUserRole">
                 <option value="staff">staff</option>
                 <option value="accountant">accountant</option>
                 <option value="admin">admin</option>
               </select></div>
-            </div>
-            <button class="btn primary" data-add-user>Add Employee / 添加员工</button>
+              <div id="employeeMessage" class="notice span-2" role="status"></div>
+              <button class="btn primary span-2" type="submit" data-add-user>Add Employee / 添加员工</button>
+            </form>
           </section>
           <section class="card section">
             <h2>Audit Trail / 审计记录</h2>
@@ -3215,21 +3349,31 @@
           button.disabled = false;
         }
       });
-      document.querySelector("[data-add-user]").addEventListener("click", () => {
+      document.getElementById("employeeForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        const button = document.querySelector("[data-add-user]");
+        if (button.disabled) return;
         const name = document.getElementById("newUserName").value.trim();
+        const email = document.getElementById("newUserEmail").value.trim();
+        const password = document.getElementById("newUserPassword").value;
         const role = document.getElementById("newUserRole").value;
         if (!name) return toast("Employee name required / 请输入员工名字");
-        const emailName = name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/(^\\.|\\.$)/g, "") || "employee";
-        state.users.push({
-          id: crypto.randomUUID(),
-          name,
-          email: `${emailName}@example.local`,
-          role,
-          is_active: true
-        });
-        saveState();
-        toast("Employee added / 员工已添加");
-        renderAdmin();
+        const message = document.getElementById("employeeMessage");
+        button.disabled = true;
+        message.textContent = "Creating account / 正在开户...";
+        try {
+          const result = await employeeAccountRequest({ action: "create", name, email, password, role });
+          const user = profileToUser(result.profile);
+          state.users = state.users.filter(item => item.id !== user.id).concat(user);
+          document.getElementById("employeeForm").reset();
+          saveState();
+          toast("Account created / 账号已建立，请把电邮和临时密码交给员工");
+          render();
+        } catch (error) {
+          message.textContent = error.message;
+        } finally {
+          button.disabled = false;
+        }
       });
       document.querySelectorAll("[data-edit-user]").forEach(button => button.addEventListener("click", () => {
         const user = state.users.find(item => item.id === button.dataset.editUser);
@@ -3237,7 +3381,7 @@
       }));
       document.querySelectorAll("[data-restore-user]").forEach(button => button.addEventListener("click", () => {
         const user = state.users.find(item => item.id === button.dataset.restoreUser);
-        if (user) restoreEmployee(user);
+        if (user) restoreEmployee(user, button);
       }));
       document.querySelectorAll("[data-toggle-cat]").forEach(button => button.addEventListener("click", async () => {
         const category = state.categories.find(item => item.id === button.dataset.toggleCat);
@@ -3343,6 +3487,11 @@
     }
 
     function render() {
+      if (sessionChecking) {
+        renderShell();
+        document.getElementById("view").innerHTML = '<div class="empty" role="status"><strong>Connecting / 正在连接...</strong></div>';
+        return;
+      }
       if (isLoggedIn && !state.users.some(user => user.id === currentUserId && user.is_active)) {
         isLoggedIn = false;
         localStorage.setItem(AUTH_KEY, "false");
@@ -3356,6 +3505,10 @@
         return;
       }
       const user = currentUser();
+      if (mustChangePassword || route === "password") {
+        renderPasswordChange();
+        return;
+      }
       if (route === "new" && user.role !== "staff") route = "dashboard";
       if (["review", "toPay", "reports"].includes(route) && !canReview()) route = "dashboard";
       if (route === "admin" && user.role !== "admin") route = "dashboard";
@@ -3386,7 +3539,7 @@
         if (refreshing) return;
         refreshing = true;
         const refreshWhenReady = () => {
-          if (document.querySelector("[data-submit]:disabled")) {
+          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, [data-real-login]:disabled")) {
             window.setTimeout(refreshWhenReady, 1000);
             return;
           }
