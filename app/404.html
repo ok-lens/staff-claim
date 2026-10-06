@@ -924,7 +924,7 @@
       url: "https://fdxrluknovdrogycoaqz.supabase.co",
       publishableKey: "sb_publishable_msJm7TvexWZqa762PVCorA__fjawYac"
     };
-    const FORMAL_DATA_VERSION = 1;
+    const FORMAL_DATA_VERSION = 2;
     const DEMO_YEARS_VERSION = 1;
     const DEMO_OPEN_ITEMS_VERSION = 1;
     const statuses = ["DRAFT", "SUBMITTED", "NEED_REVIEW", "APPROVED", "PAID", "REJECTED"];
@@ -996,8 +996,8 @@
         drafts: {},
         sequence: {},
         auditLogs: [],
-        formal_mode: false,
-        formal_data_version: 0
+        formal_mode: true,
+        formal_data_version: FORMAL_DATA_VERSION
       };
     }
 
@@ -1006,7 +1006,18 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return seedState();
         const parsed = JSON.parse(raw);
-        return { ...seedState(), ...parsed };
+        const loaded = { ...seedState(), ...parsed };
+        if ((Number(parsed.formal_data_version) || 0) < FORMAL_DATA_VERSION) {
+          loaded.claims = [];
+          loaded.drafts = {};
+          loaded.auditLogs = [];
+          loaded.sequence = {};
+          loaded.users = loaded.users.filter(user => isUuid(user.id));
+          loaded.formal_mode = true;
+          loaded.formal_data_version = FORMAL_DATA_VERSION;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+        }
+        return loaded;
       } catch (error) {
         return seedState();
       }
@@ -3300,7 +3311,6 @@
               ${claim.duplicate_flag ? `<div class="notice warning">Possible duplicate / 可能重复：${escapeHtml(claim.duplicate_message)} ${claim.duplicate_claim_id ? `<button class="btn ghost" data-open="${claim.duplicate_claim_id}">View existing</button>` : ""}${claim.duplicate_override_reason ? `<br>Override: ${escapeHtml(claim.duplicate_override_reason)}` : ""}</div>` : `<div class="notice success">No duplicate flag / 没有重复提示</div>`}
               <div class="divider"></div>
               ${kv("Claim By / 申请人", userName(claim.claimant_id))}
-              ${kv("Receipt Number / 收据号码", claim.receipt_number || "-")}
               ${kv("Claim Amount / 报销金额", money(claim.claim_amount))}
               ${kv("Approved Amount / 批准金额", claim.approved_amount ? money(claim.approved_amount) : "-")}
               ${kv("Purpose / 用途", claim.purpose)}
