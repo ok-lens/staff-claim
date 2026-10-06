@@ -55,6 +55,21 @@ function fixture(overrides = {}) {
   return { calls, request };
 }
 const create = { action: "create", name: "New Staff", email: "new@example.com", password: TEMP, role: "staff" };
+for (const password of ["Abcd1234", "Abcdefgh123456"]) {
+  test(`temporary password accepts ${password.length}-character boundary`, async () => {
+    const f = fixture();
+    assert.equal((await f.request({ ...create, password })).status, 201);
+  });
+}
+for (const password of ["Abcd123", "Abcdefgh1234567", "abcdefgh", "12345678"]) {
+  test(`temporary password rejects invalid length/composition (${password.length} characters)`, async () => {
+    const f = fixture();
+    const response = await f.request({ ...create, password });
+    assert.equal(response.status, 400);
+    assert.equal(response.data.code, "invalid_temporary_password");
+    assert.equal(f.calls.length, 0);
+  });
+}
 test("missing and invalid sessions cannot provision", async () => {
   const f = fixture();
   assert.equal((await f.request(create, "")).status, 401);

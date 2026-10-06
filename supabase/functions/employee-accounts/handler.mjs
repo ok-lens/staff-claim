@@ -2,6 +2,7 @@ const PROFILE_FIELDS = "id,full_name,email,role,is_active";
 const ROLES = new Set(["staff", "accountant", "admin"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const strongPassword = value => typeof value === "string" && value.length >= 10 && value.length <= 128 && /[a-zA-Z]/.test(value) && /[0-9]/.test(value);
+const temporaryPassword = value => typeof value === "string" && value.length >= 8 && value.length <= 14 && /[a-zA-Z]/.test(value) && /[0-9]/.test(value);
 const accountFields = body => ({
   full_name: typeof body.name === "string" ? body.name.trim() : "",
   email: typeof body.email === "string" ? body.email.trim().toLowerCase() : "",
@@ -78,7 +79,7 @@ export function createEmployeeHandler({ createClient, env }) {
       if (!validFields(fields)) return reply(400, { code: "invalid_input" });
 
       if (body.action === "create") {
-        if (!strongPassword(body.password)) return reply(400, { code: "invalid_password" });
+        if (!temporaryPassword(body.password)) return reply(400, { code: "invalid_temporary_password" });
         const created = await admin.auth.admin.createUser({
           email: fields.email, password: body.password, email_confirm: true,
           user_metadata: { full_name: fields.full_name }, app_metadata: { must_change_password: true }
