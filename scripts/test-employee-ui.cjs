@@ -16,12 +16,24 @@ function mockSdk() {
   const mode = () => sessionStorage.getItem("mock.mode") || "admin";
   const user = () => mode() === "invalid" ? null : {
     id: mode() === "admin" ? ADMIN : STAFF, email: mode() === "admin" ? "admin@example.com" : "staff@example.com",
-    app_metadata: { must_change_password: mode() === "new" }
+    app_metadata: { must_change_password: ["new", "recovery-new"].includes(mode()) }
   };
   window.__calls = [];
   const client = {
     auth: {
+      onAuthStateChange: callback => {
+        if (mode().startsWith("recovery") && new URLSearchParams(location.hash.slice(1)).get("type") === "recovery") {
+          queueMicrotask(() => callback("PASSWORD_RECOVERY", { user: user() }));
+        }
+        return { data: { subscription: { unsubscribe() {} } } };
+      },
       getUser: async () => ({ data: { user: user() }, error: mode() === "invalid" ? new Error("No session") : null }),
+      getClaims: async () => ({ data: { claims: { sub: user()?.id, amr: [{ method: mode().startsWith("recovery") ? "otp" : "password", timestamp: Math.floor(Date.now() / 1000) - (mode() === "recovery-expired" ? 7200 : 0) }] } }, error: null }),
+      resetPasswordForEmail: async (email, options) => {
+        window.__calls.push({ action: "send-recovery", email, options });
+        const failure = sessionStorage.getItem("mock.mailError");
+        return { error: failure ? { code: failure, status: failure === "over_email_send_rate_limit" ? 429 : 422 } : null };
+      },
       signInWithPassword: async fields => {
         sessionStorage.setItem("mock.mode", fields.email === "admin@example.com" ? "admin" : "new");
         return { data: { user: user() }, error: null };
@@ -45,6 +57,12 @@ function mockSdk() {
     functions: { invoke: async (_, { body }) => {
       window.__calls.push({ ...body });
       const failure = code => ({ data: null, error: { context: { json: async () => ({ code }) } } });
+      if (body.action === "recover-password") {
+        if (!mode().startsWith("recovery") || mode() === "recovery-expired") return failure("recovery_link_expired");
+        if (window.__rejectPassword) return failure("password_update_failed");
+        sessionStorage.setItem("mock.mode", "staff");
+        return { data: { success: true }, error: null };
+      }
       if (body.action === "change-password") {
         if (body.current_password !== "Temporary123!") return failure("wrong_password");
         sessionStorage.setItem("mock.mode", "staff");
@@ -64,7 +82,8 @@ function mockSdk() {
   window.supabase = { createClient: () => client };
 }
 
-(async () => {
+module.exports = { mockSdk };
+if (require.main === module) (async () => {
   const browser = await chromium.connectOverCDP(process.env.CDP_URL);
   const contexts = [];
   const errors = [];

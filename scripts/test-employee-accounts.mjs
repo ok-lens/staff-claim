@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createEmployeeHandler } from "../supabase/functions/employee-accounts/handler.mjs";
+import { createEmployeeHandler, validRecoveryProof } from "../supabase/functions/employee-accounts/handler.mjs";
 
 const ID = "00000000-0000-4000-8000-000000000001";
 const OTHER = "00000000-0000-4000-8000-000000000002";
@@ -10,17 +10,19 @@ const profile = { id: ID, full_name: "Admin", email: "admin@example.com", role: 
 function fixture(overrides = {}) {
   const calls = [];
   const own = { ...profile, ...overrides.profile };
-  const caller = { id: ID, email: own.email, app_metadata: overrides.metadata || {} };
+  const caller = { id: ID, email: own.email, recovery_sent_at: new Date(Date.now() - 30000).toISOString(), app_metadata: overrides.metadata || {} };
   const old = { id: OTHER, full_name: "Employee", email: "employee@example.com", role: "staff", is_active: true };
   const result = (data, error = null) => ({ data, error });
   const admin = {
     auth: {
       getUser: async token => token === "valid" ? result({ user: caller }) : result({ user: null }, new Error("invalid")),
+      getClaims: async () => result({ claims: { sub: ID, aud: "authenticated", amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) }], ...overrides.claims } }, overrides.claimsError),
       admin: {
         createUser: async fields => { calls.push(["create", fields]); return result({ user: { id: OTHER } }, overrides.createError); },
         deleteUser: async id => { calls.push(["delete", id]); return result({}, overrides.deleteError); },
         getUserById: async () => result({ user: { id: OTHER, email: old.email } }),
-        updateUserById: async (id, fields) => { calls.push(["auth-update", id, fields]); return result({ user: caller }, overrides.updateError); }
+        updateUserById: async (id, fields) => { calls.push(["auth-update", id, fields]); if (!overrides.updateError && fields.app_metadata) caller.app_metadata = fields.app_metadata; return result({ user: caller }, overrides.updateError); },
+        signOut: async (token, scope) => { calls.push(["revoke-sessions", token, scope]); return result({}); }
       }
     },
     from: table => {
@@ -149,4 +151,43 @@ test("unapproved origins and malformed JSON fail closed", async () => {
   assert.equal((await f.request(create, "valid", "https://unapproved.test")).status, 403);
   assert.equal((await f.request("not-json")).status, 400);
   assert.equal(f.calls.length, 0);
+});
+test("verified recent email recovery can reset only the caller and cannot be replayed", async () => {
+  const f = fixture({ profile: { role: "staff" }, metadata: { must_change_password: true, existing: "keep" }, claims: { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) }] } });
+  const body = { action: "recover-password", password: NEW, id: OTHER };
+  assert.equal((await f.request(body)).status, 200);
+  const changed = f.calls.find(call => call[0] === "auth-update");
+  assert.equal(changed[1], ID);
+  assert.equal(changed[2].app_metadata.must_change_password, false);
+  assert.equal(changed[2].app_metadata.existing, "keep");
+  assert.ok(changed[2].app_metadata.password_recovered_at);
+  assert.ok(f.calls.some(call => call[0] === "revoke-sessions" && call[2] === "global"));
+  assert.equal((await f.request(body)).data.code, "recovery_link_expired");
+  assert.equal(f.calls.filter(call => call[0] === "auth-update").length, 1);
+});
+for (const option of [
+  {},
+  { claimsError: new Error("Invalid signature") },
+  { claims: { sub: OTHER, amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) }] } },
+  { claims: { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) - 7200 }] } },
+  { claims: { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) + 60 }] } },
+  { metadata: { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) }] } }
+]) test("unverified, password-only, expired or spoofed recovery proof fails before writes", async () => {
+  const f = fixture(option);
+  assert.equal((await f.request({ action: "recover-password", password: NEW })).status, 403);
+  assert.equal(f.calls.length, 0);
+});
+test("inactive recovery and weak replacement password are rejected", async () => {
+  const claims = { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) }] };
+  const inactive = fixture({ profile: { is_active: false }, claims });
+  assert.equal((await inactive.request({ action: "recover-password", password: NEW })).data.code, "account_inactive");
+  const weak = fixture({ claims });
+  assert.equal((await weak.request({ action: "recover-password", password: "Ab1234" })).data.code, "invalid_password");
+  assert.equal(weak.calls.length, 0);
+});
+test("recovery proof requires a real email-recovery request and rejects an older OTP", () => {
+  const now = Date.now();
+  const claims = { sub: ID, aud: "authenticated", amr: [{ method: "otp", timestamp: Math.floor(now / 1000) - 60 }] };
+  assert.equal(validRecoveryProof(claims, { id: ID, app_metadata: {} }, now), false);
+  assert.equal(validRecoveryProof(claims, { id: ID, recovery_sent_at: new Date(now - 30000).toISOString(), app_metadata: {} }, now), false);
 });

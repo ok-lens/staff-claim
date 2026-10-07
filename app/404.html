@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Staff Claims" />
   <meta name="description" content="Mobile staff claim and reimbursement app." />
+  <meta name="referrer" content="no-referrer" />
   <title>Staff Claims</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-maskable.svg" />
@@ -981,6 +982,16 @@
     let currentAuthUser = null;
     let mustChangePassword = false;
     let loginBusy = false;
+    const recoveryHash = new URLSearchParams(window.location.hash.slice(1));
+    const recoveryLinkRequested = recoveryHash.get("type") === "recovery" || recoveryHash.has("error_code");
+    const recoveryLinkError = recoveryHash.has("error") || recoveryHash.has("error_code");
+    let recoveryMode = false;
+    let recoveryMessage = "";
+    let forgotEmail = "";
+    let forgotBusy = false;
+    let forgotTimer = null;
+    const RECOVERY_USER_KEY = "staffClaimsMvp.recoveryUser";
+    const RECOVERY_REDIRECT = "https://staff-claim.onrender.com/";
     let route = "dashboard";
     let activeClaimId = null;
     let detailReturnRoute = "dashboard";
@@ -1990,7 +2001,15 @@
       }
       if (!supabaseClient) {
         supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.publishableKey, {
-          auth: { persistSession: true, autoRefreshToken: true }
+          auth: { persistSession: true, autoRefreshToken: true, flowType: "implicit", detectSessionInUrl: true }
+        });
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === "PASSWORD_RECOVERY" && session?.user) {
+            recoveryMode = true;
+            sessionStorage.setItem(RECOVERY_USER_KEY, session.user.id);
+            // Never await Auth methods inside its state-change callback (Auth holds a lock).
+            if (!sessionChecking) window.setTimeout(() => connectSupabase(), 0);
+          }
         });
       }
       return supabaseClient;
@@ -2054,6 +2073,8 @@
       isLoggedIn = false;
       currentAuthUser = null;
       mustChangePassword = false;
+      recoveryMode = false;
+      sessionStorage.removeItem(RECOVERY_USER_KEY);
       localStorage.setItem(AUTH_KEY, "false");
       localStorage.removeItem("staffClaimsMvp.currentUser");
       route = "dashboard";
@@ -2087,7 +2108,8 @@
       account_cleanup_required: "Account needs administrator support / 账号保存未完成，请联系管理员，不要重复开户",
       account_create_failed: "Account creation failed / 开户失败，请检查电邮和密码后重试",
       account_update_failed: "Employee update failed / 员工资料更新失败",
-      password_update_failed: "Password rejected / 密码未通过安全检查，请换一个再试"
+      password_update_failed: "Password rejected / 密码未通过安全检查，请换一个再试",
+      recovery_link_expired: "Reset link expired / 重设链接已过期，请重新申请邮件"
     };
 
     async function employeeAccountRequest(body) {
@@ -2101,16 +2123,17 @@
     }
 
     function renderPasswordChange() {
+      const recovering = recoveryMode;
       document.getElementById("view").innerHTML = `
-        ${pageHeader(mustChangePassword ? "Set Your Password / 设置自己的密码" : "Change Password / 修改密码", escapeHtml(currentUser().name))}
+        ${pageHeader(recovering ? "Reset Password / 重设密码" : mustChangePassword ? "Set Your Password / 设置自己的密码" : "Change Password / 修改密码", escapeHtml(currentUser().name))}
         <section class="card section">
           <form id="passwordForm" class="form-grid">
-            <div class="field span-2"><label for="currentPassword">Current Password / 当前密码</label><input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128"></div>
+            ${recovering ? "" : '<div class="field span-2"><label for="currentPassword">Current Password / 当前密码</label><input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128"></div>'}
             <div class="field"><label for="newPassword">New Password / 新密码</label><input id="newPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></div>
             <div class="field"><label for="confirmPassword">Confirm Password / 确认新密码</label><input id="confirmPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></div>
             <div class="small-muted span-2">10–128 characters, letters and numbers / 10–128位，包含字母和数字</div>
-            <div id="passwordMessage" class="notice span-2" role="status">${mustChangePassword ? "Temporary password / 请把公司提供的临时密码改成自己的密码" : ""}</div>
-            <div class="toolbar span-2">${mustChangePassword ? "" : '<button class="btn" type="button" id="cancelPassword">Cancel / 取消</button>'}<button class="btn primary" type="submit" data-password-save>Save Password / 保存密码</button></div>
+            <div id="passwordMessage" class="notice span-2" role="status">${recovering ? "Email verified / 电邮已验证，请设置新密码" : mustChangePassword ? "Temporary password / 请把公司提供的临时密码改成自己的密码" : ""}</div>
+            <div class="toolbar span-2">${mustChangePassword || recovering ? "" : '<button class="btn" type="button" id="cancelPassword">Cancel / 取消</button>'}<button class="btn primary" type="submit" data-password-save>Save Password / 保存密码</button></div>
           </form>
         </section>`;
       document.getElementById("cancelPassword")?.addEventListener("click", () => setRoute("dashboard"));
@@ -2128,10 +2151,17 @@
         message.textContent = "Saving / 正在保存...";
         let passwordSaved = false;
         try {
-          await employeeAccountRequest({ action: "change-password", current_password: document.getElementById("currentPassword").value, password });
+          await employeeAccountRequest(recovering ? { action: "recover-password", password } : { action: "change-password", current_password: document.getElementById("currentPassword").value, password });
           passwordSaved = true;
           document.getElementById("passwordForm").reset();
           const client = getSupabaseClient();
+          if (recovering) {
+            await client.auth.signOut({ scope: "local" }).catch(() => {});
+            clearLogin();
+            render();
+            setLoginMessage("Password reset / 密码已重设，请用新密码登录");
+            return;
+          }
           const refreshed = await client.auth.refreshSession();
           if (refreshed.error) throw refreshed.error;
           const verified = await client.auth.getUser();
@@ -2208,20 +2238,38 @@
     }
 
     async function connectSupabase() {
+      sessionChecking = true;
+      render();
       try {
         if (!window.supabase || !window.supabase.createClient) {
           throw new Error("Supabase SDK not loaded");
         }
         const client = getSupabaseClient();
         const { data: auth, error } = await client.auth.getUser();
-        if (!error && auth.user) {
+        const recoveryUser = sessionStorage.getItem(RECOVERY_USER_KEY);
+        const pendingRecovery = recoveryMode || recoveryLinkRequested || Boolean(recoveryUser);
+        if (!error && auth.user && !recoveryLinkError) {
           const user = await loadSupabaseProfile(auth.user);
           currentUserId = user.id;
           isLoggedIn = true;
           localStorage.setItem(AUTH_KEY, "true");
           localStorage.setItem("staffClaimsMvp.currentUser", user.id);
+          if (pendingRecovery) {
+            const verified = await client.auth.getClaims();
+            const claims = verified.data?.claims;
+            const recentEmailProof = !verified.error && claims?.sub === user.id && claims.amr?.some(entry =>
+              ["otp", "email", "recovery"].includes(entry.method)
+                && Date.now() - entry.timestamp * 1000 <= 3600000);
+            if (!recentEmailProof || (recoveryUser && recoveryUser !== user.id)) throw new Error("Recovery expired");
+            recoveryMode = true;
+            sessionStorage.setItem(RECOVERY_USER_KEY, user.id);
+          }
         } else {
           clearLogin();
+          if (pendingRecovery) {
+            recoveryMessage = "Reset link expired / 重设链接无效或已过期，请重新申请邮件";
+            route = "forgot";
+          }
         }
         const data = await syncSupabaseCategories(client);
         const count = data.length;
@@ -2229,9 +2277,16 @@
         state.supabase = { connected_at: new Date().toISOString(), category_count: count };
         saveState();
       } catch (error) {
+        const pendingRecovery = recoveryMode || recoveryLinkRequested || Boolean(sessionStorage.getItem(RECOVERY_USER_KEY));
         clearLogin();
         supabaseSync = { state: "error", label: "Supabase offline / 未连接" };
+        if (pendingRecovery) {
+          await supabaseClient?.auth.signOut({ scope: "local" }).catch(() => {});
+          recoveryMessage = "Reset link unavailable / 重设链接不可用，请检查网络或重新申请邮件";
+          route = "forgot";
+        }
       }
+      if (recoveryLinkRequested || recoveryLinkError) history.replaceState(null, "", window.location.pathname + window.location.search);
       sessionChecking = false;
       render();
     }
@@ -2253,13 +2308,13 @@
           <div class="session-role">${escapeHtml(currentUser().role)} · ${canReview() ? "Can view all claims / 可看全部" : "Own claims only / 只看自己"}</div>
         </div>
         <div class="session-actions">
-          ${mustChangePassword ? "" : '<button class="btn" data-change-password>Change Password / 修改密码</button>'}
+          ${mustChangePassword || recoveryMode ? "" : '<button class="btn" data-change-password>Change Password / 修改密码</button>'}
           <button class="btn" data-logout>Logout / 登出</button>
         </div>
       `;
       profileBox.querySelector("[data-logout]").addEventListener("click", logout);
       profileBox.querySelector("[data-change-password]")?.addEventListener("click", () => setRoute("password"));
-      if (mustChangePassword) {
+      if (mustChangePassword || recoveryMode) {
         nav.innerHTML = "";
         return;
       }
@@ -2550,16 +2605,71 @@
               <div class="field"><label>Password / 密码</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
               <button class="btn primary" data-real-login>Login / 登录</button>
               <div id="loginMessage" class="notice">Company account / 使用公司提供的电邮和密码</div>
+              <button class="btn ghost" type="button" data-forgot-password>Forgot Password / 忘记密码</button>
             </div>
           </section>
         </div>
       `;
       document.getElementById("view").innerHTML = html;
       document.querySelector("[data-real-login]").addEventListener("click", signInWithSupabase);
+      document.querySelector("[data-forgot-password]").addEventListener("click", () => {
+        forgotEmail = document.getElementById("loginEmail").value.trim();
+        recoveryMessage = "";
+        setRoute("forgot");
+      });
       ["loginEmail", "loginPassword"].forEach(id => {
         document.getElementById(id)?.addEventListener("keydown", event => {
           if (event.key === "Enter") signInWithSupabase();
         });
+      });
+    }
+    function renderForgotPassword() {
+      window.clearTimeout(forgotTimer);
+      document.getElementById("view").innerHTML = `
+        ${pageHeader("Forgot Password / 忘记密码", "")}
+        <section class="card section">
+          <form id="forgotPasswordForm" class="form-grid">
+            <div class="field span-2"><label for="recoveryEmail">Email / 注册电邮</label><input id="recoveryEmail" type="email" autocomplete="email" required maxlength="254" value="${escapeHtml(forgotEmail)}"></div>
+            <div id="recoveryMessage" class="notice span-2" role="status">${escapeHtml(recoveryMessage)}</div>
+            <button class="btn primary span-2" type="submit" data-send-recovery>Send Reset Email / 发送重设邮件</button>
+            <button class="btn span-2" type="button" data-back-login>Back to Login / 返回登录</button>
+          </form>
+        </section>`;
+      document.querySelector("[data-back-login]").addEventListener("click", () => setRoute("dashboard"));
+      const button = document.querySelector("[data-send-recovery]");
+      const refreshCooldown = () => {
+        if (!button.isConnected) return;
+        const seconds = Math.max(0, Math.ceil((Number(sessionStorage.getItem("staffClaimsMvp.recoveryCooldown")) - Date.now()) / 1000));
+        button.disabled = forgotBusy || seconds > 0;
+        button.textContent = seconds ? `Resend in ${seconds}s / ${seconds}秒后重发` : "Send Reset Email / 发送重设邮件";
+        if (seconds) forgotTimer = window.setTimeout(refreshCooldown, 1000);
+      };
+      refreshCooldown();
+      document.getElementById("forgotPasswordForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        if (button.disabled) return;
+        forgotEmail = document.getElementById("recoveryEmail").value.trim().toLowerCase();
+        const message = document.getElementById("recoveryMessage");
+        forgotBusy = true;
+        button.disabled = true;
+        message.textContent = "Sending / 正在发送...";
+        try {
+          const { error } = await getSupabaseClient().auth.resetPasswordForEmail(forgotEmail, { redirectTo: RECOVERY_REDIRECT });
+          if (error && error.code !== "user_not_found") throw error;
+          sessionStorage.setItem("staffClaimsMvp.recoveryCooldown", String(Date.now() + 60000));
+          message.textContent = "If this email is registered, a reset link will be sent. Check your inbox and spam folder / 若此电邮已注册，会收到重设链接，请检查收件箱和垃圾邮件";
+        } catch (error) {
+          if (error.status === 429 || ["over_email_send_rate_limit", "over_request_rate_limit"].includes(error.code)) {
+            sessionStorage.setItem("staffClaimsMvp.recoveryCooldown", String(Date.now() + 60000));
+            message.textContent = "Please wait before retrying / 发送太频繁，请稍后再试";
+          } else {
+            message.textContent = "Unable to send email / 暂时无法发送，请稍后重试或联系管理员检查发信设置";
+          }
+        } finally {
+          forgotBusy = false;
+          recoveryMessage = message.textContent;
+          refreshCooldown();
+        }
       });
     }
     function renderDashboard() {
@@ -3502,11 +3612,12 @@
       }
       renderShell();
       if (!isLoggedIn) {
-        renderLogin();
+        if (route === "forgot") renderForgotPassword();
+        else renderLogin();
         return;
       }
       const user = currentUser();
-      if (mustChangePassword || route === "password") {
+      if (mustChangePassword || recoveryMode || route === "password") {
         renderPasswordChange();
         return;
       }
@@ -3540,7 +3651,7 @@
         if (refreshing) return;
         refreshing = true;
         const refreshWhenReady = () => {
-          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, [data-real-login]:disabled")) {
+          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, [data-real-login]:disabled") || forgotBusy) {
             window.setTimeout(refreshWhenReady, 1000);
             return;
           }

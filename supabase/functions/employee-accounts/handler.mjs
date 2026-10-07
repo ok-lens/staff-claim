@@ -13,6 +13,19 @@ const validFields = fields => fields.full_name.length > 0 && fields.full_name.le
   && fields.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)
   && ROLES.has(fields.role) && typeof fields.is_active === "boolean";
 
+export function validRecoveryProof(claims, user, now = Date.now()) {
+  const sentAt = Date.parse(user.recovery_sent_at || "");
+  const usedAt = Date.parse(user.app_metadata?.password_recovered_at || "") || 0;
+  // Supabase implicit email verification issues an OTP AMR, not a distinct recovery AMR.
+  return claims?.sub === user.id && claims.aud === "authenticated" && Number.isFinite(sentAt)
+    && Array.isArray(claims.amr) && claims.amr.some(entry =>
+      ["otp", "email", "recovery"].includes(entry.method) && Number.isFinite(entry.timestamp)
+      && entry.timestamp >= Math.floor(sentAt / 1000)
+      && entry.timestamp * 1000 > usedAt
+      && entry.timestamp * 1000 <= now + 5000
+      && now - entry.timestamp * 1000 <= 3600000);
+}
+
 export function createEmployeeHandler({ createClient, env }) {
   function key(bundle, fallback) {
     const value = env(bundle);
@@ -52,6 +65,22 @@ export function createEmployeeHandler({ createClient, env }) {
       let body;
       try { body = JSON.parse(raw); } catch { return reply(400, { code: "invalid_input" }); }
       if (!body || typeof body !== "object" || Array.isArray(body)) return reply(400, { code: "invalid_input" });
+
+      if (body.action === "recover-password") {
+        const verified = await admin.auth.getClaims(token);
+        if (verified.error || !validRecoveryProof(verified.data?.claims, caller)) {
+          return reply(403, { code: "recovery_link_expired" });
+        }
+        if (!strongPassword(body.password)) return reply(400, { code: "invalid_password" });
+        const changed = await admin.auth.admin.updateUserById(caller.id, {
+          password: body.password,
+          app_metadata: { ...caller.app_metadata, must_change_password: false, password_recovered_at: new Date().toISOString() }
+        });
+        if (changed.error) return reply(400, { code: "password_update_failed" });
+        // Revoke refresh sessions after recovery; the timestamp above also rejects replayed access tokens.
+        await admin.auth.admin.signOut(token, "global").catch(() => {});
+        return reply(200, { success: true });
+      }
 
       if (body.action === "change-password") {
         if (!strongPassword(body.password) || typeof body.current_password !== "string"

@@ -19,6 +19,18 @@ Only active Admin/Boss profiles can provision or manage accounts. Accounts/Staff
 
 ## Verification
 
+## Forgot Password
+
+Employees open Forgot Password on the login screen, enter their registered email, and follow the emailed link to set a new personal password (10-128 characters with letters and numbers). Successful recovery signs them out; they then sign in with the new password. Existing claims are unchanged. Inactive accounts cannot reset through the app.
+
+Before employee use, configure Supabase Auth URL Configuration: Site URL `https://staff-claim.onrender.com/`, and the same exact URL in Redirect URLs. Configure and test Custom SMTP in Auth > Emails > SMTP Settings; the default mail service cannot deliver to ordinary employees outside the Supabase organization team. Keep the recovery email template's ConfirmationURL link. Never put SMTP credentials in frontend files.
+
+The backend validates a signed, recent email OTP claim against the account's recovery request timestamp, not the URL fragment alone. It resets only the authenticated account, records a trusted recovery timestamp to reject replay, and revokes refresh sessions. Password-only sessions still require the current password via Change Password. Request responses do not reveal whether an email is registered.
+
+`scripts/test-password-recovery-ui.cjs` tests email requests, cooldown, reset links, expired/forged links, logout and responsive layout with a mocked SDK; it does not verify real email delivery.
+
+## Account Tests
+
 `node --test scripts/test-employee-accounts.mjs` runs backend authorization, validation and compensation tests using mocks only.
 
 `scripts/test-employee-ui.cjs` tests the real HTML with a browser-only mocked SDK. Set `CDP_URL` to an agent-browser browser connection, `APP_URL` to the preview, and optionally `PLAYWRIGHT_PATH` to the installed Playwright module. It covers account creation, duplicates, persistent settings, first-login password gating, logout, and responsive layout without adding production test accounts.
