@@ -1,7 +1,7 @@
 const PROFILE_FIELDS = "id,full_name,email,role,is_active";
 const ROLES = new Set(["staff", "accountant", "admin"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const strongPassword = value => typeof value === "string" && value.length >= 10 && value.length <= 128 && /[a-zA-Z]/.test(value) && /[0-9]/.test(value);
+const strongPassword = value => typeof value === "string" && value.length >= 8 && value.length <= 16 && /[a-zA-Z]/.test(value) && /[0-9]/.test(value);
 const temporaryPassword = value => typeof value === "string" && value.length >= 6 && value.length <= 14 && /[a-zA-Z]/.test(value) && /[0-9]/.test(value);
 const accountFields = body => ({
   full_name: typeof body.name === "string" ? body.name.trim() : "",

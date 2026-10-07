@@ -2100,7 +2100,7 @@
       password_change_required: "Change your password first / 请先修改密码",
       email_exists: "Email already registered / 这个电邮已注册",
       invalid_input: "Check name, email and role / 请检查名字、电邮和角色",
-      invalid_password: "Use 10–128 characters with letters and numbers / 密码需10–128位，包含字母和数字，且不能与旧密码相同",
+      invalid_password: "Use 8–16 characters with letters and numbers / 密码需8–16位，包含字母和数字，且不能与旧密码相同",
       invalid_temporary_password: "Use 6–14 characters with letters and numbers / 临时密码需6–14位，包含字母和数字",
       wrong_password: "Current password is incorrect / 当前密码不正确",
       own_admin_required: "Cannot remove your own admin access / 不能停用当前管理员",
@@ -2129,9 +2129,9 @@
         <section class="card section">
           <form id="passwordForm" class="form-grid">
             ${recovering ? "" : '<div class="field span-2"><label for="currentPassword">Current Password / 当前密码</label><input id="currentPassword" type="password" autocomplete="current-password" required maxlength="128"></div>'}
-            <div class="field"><label for="newPassword">New Password / 新密码</label><input id="newPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></div>
-            <div class="field"><label for="confirmPassword">Confirm Password / 确认新密码</label><input id="confirmPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></div>
-            <div class="small-muted span-2">10–128 characters, letters and numbers / 10–128位，包含字母和数字</div>
+            <div class="field"><label for="newPassword">New Password / 新密码</label><input id="newPassword" type="password" autocomplete="new-password" required minlength="8" maxlength="16"></div>
+            <div class="field"><label for="confirmPassword">Confirm Password / 确认新密码</label><input id="confirmPassword" type="password" autocomplete="new-password" required minlength="8" maxlength="16"></div>
+            <div class="small-muted span-2">8–16 characters, letters and numbers / 8–16位，包含字母和数字</div>
             <div id="passwordMessage" class="notice span-2" role="status">${recovering ? "Email verified / 电邮已验证，请设置新密码" : mustChangePassword ? "Temporary password / 请把公司提供的临时密码改成自己的密码" : ""}</div>
             <div class="toolbar span-2">${mustChangePassword || recovering ? "" : '<button class="btn" type="button" id="cancelPassword">Cancel / 取消</button>'}<button class="btn primary" type="submit" data-password-save>Save Password / 保存密码</button></div>
           </form>

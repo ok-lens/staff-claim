@@ -1,7 +1,7 @@
 # Employee Accounts
 
 1. Sign in as Admin. Open Admin > Employees.
-2. Enter name, a unique email, temporary password (6-14 characters with letters and numbers), and role. Staff is the default. Supabase Email provider minimum password length must be 6 to accept 6-7 character temporary passwords; an 8+ character password is still recommended. Personal passwords retain the stronger 10-128 character policy.
+2. Enter name, a unique email, temporary password (6-14 characters with letters and numbers), and role. Staff is the default. Supabase Email provider minimum password length must be 6 to accept 6-7 character temporary passwords; an 8+ character password is still recommended. Personal passwords require 8-16 characters with letters and numbers.
 3. Add Employee creates the real Supabase Auth account and its company profile. Give the employee the email and temporary password privately.
 4. First login requires the employee to replace the temporary password. Claims and receipts remain inaccessible until that step is complete.
 5. Employee Settings persists names, emails, roles and active status. Inactive accounts cannot access claims. Restore enables the existing account; it does not create a duplicate or change its password.
@@ -21,7 +21,7 @@ Only active Admin/Boss profiles can provision or manage accounts. Accounts/Staff
 
 ## Forgot Password
 
-Employees open Forgot Password on the login screen, enter their registered email, and follow the emailed link to set a new personal password (10-128 characters with letters and numbers). Successful recovery signs them out; they then sign in with the new password. Existing claims are unchanged. Inactive accounts cannot reset through the app.
+Employees open Forgot Password on the login screen, enter their registered email, and follow the emailed link to set a new personal password (8-16 characters with letters and numbers). Successful recovery signs them out; they then sign in with the new password. Existing claims are unchanged. Inactive accounts cannot reset through the app.
 
 Before employee use, configure Supabase Auth URL Configuration: Site URL `https://staff-claim.onrender.com/`, and the same exact URL in Redirect URLs. Configure and test Custom SMTP in Auth > Emails > SMTP Settings; the default mail service cannot deliver to ordinary employees outside the Supabase organization team. Keep the recovery email template's ConfirmationURL link. Never put SMTP credentials in frontend files.
 

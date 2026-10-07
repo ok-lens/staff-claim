@@ -57,6 +57,21 @@ function fixture(overrides = {}) {
   return { calls, request };
 }
 const create = { action: "create", name: "New Staff", email: "new@example.com", password: TEMP, role: "staff" };
+for (const action of ["change-password", "recover-password"]) {
+  for (const password of ["Abcd1234", "Abcdefgh12345678"]) {
+    test(`${action} accepts ${password.length} characters`, async () => {
+      const f = fixture({ claims: { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) }] } });
+      assert.equal((await f.request({ action, password, current_password: TEMP })).status, 200);
+    });
+  }
+  for (const password of ["Abcd123", "Abcdefghi123456789", "abcdefgh", "12345678"]) {
+    test(`${action} rejects invalid personal password (${password.length})`, async () => {
+      const f = fixture({ claims: { amr: [{ method: "otp", timestamp: Math.floor(Date.now() / 1000) }] } });
+      assert.equal((await f.request({ action, password, current_password: TEMP })).data.code, "invalid_password");
+      assert.ok(!f.calls.some(call => call[0] === "auth-update"));
+    });
+  }
+}
 for (const password of ["Ab1234", "Abcd123", "Abcd1234", "Abcdefgh123456"]) {
   test(`temporary password accepts ${password.length}-character boundary`, async () => {
     const f = fixture();
