@@ -909,7 +909,7 @@
           <strong>Staff Claims</strong>
           <span>员工垫付报销</span>
         </div>
-        <small class="app-version" title="App version / 程序版本">v2026.10.08.1</small>
+        <small class="app-version" title="App version / 程序版本">v1.12</small>
       </div>
       <div class="profile-switcher" id="profileBox"></div>
       <nav class="nav" id="nav"></nav>
@@ -2141,6 +2141,7 @@
       for (let offset = 0; ; offset += 200) {
         const { data, error } = await client.from("claims")
           .select("*, claim_attachments(*), claim_review_notes(*)")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false }).order("id", { ascending: false })
           .range(offset, offset + 199);
         if (error) throw error;
@@ -3640,6 +3641,37 @@
       }));
     }
 
+    function canDeleteClaim(claim) {
+      return claim.status !== "PAID" && (canReview() ||
+        (claim.claimant_id === currentUser().id && ["SUBMITTED", "NEED_REVIEW"].includes(claim.status)));
+    }
+
+    function deleteClaim(claim) {
+      if (!canDeleteClaim(claim)) return;
+      openModal(`<h2>Delete Claim / 删除报销</h2>
+        <p>${escapeHtml(claim.claim_number)}</p>
+        <p class="small-muted">Remove this claim from the list? Receipt records will be retained / 确认从列表删除这张报销单？收据记录会保留。</p>
+        <div class="notice warning" id="deleteClaimMessage" role="status"></div>
+        <footer><button class="btn" data-close>Cancel / 取消</button><button class="btn danger" id="confirmDeleteClaim">Delete / 删除</button></footer>`, modal => {
+        modal.querySelector("#confirmDeleteClaim").addEventListener("click", async event => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try {
+            const { data, error } = await getSupabaseClient().rpc("soft_delete_claim", { p_claim_id: claim.id });
+            if (error || data !== claim.id) throw new Error("Delete failed / 删除失败，请检查网络和单据状态后重试");
+            state.claims = state.claims.filter(item => item.id !== claim.id);
+            saveState();
+            closeModal();
+            toast("Claim deleted / 报销已删除");
+            setRoute(detailReturnRoute || "dashboard");
+          } catch (error) {
+            modal.querySelector("#deleteClaimMessage").textContent = error.message;
+            button.disabled = false;
+          }
+        });
+      });
+    }
+
     function renderDetail() {
       const claim = state.claims.find(item => item.id === activeClaimId);
       if (!claim || !claimVisibleToUser(claim)) {
@@ -3665,6 +3697,7 @@
       }
       if (canReview() && claim.status === "APPROVED") actions.push(`<button class="btn primary" data-action="paid">Mark Paid / 标记付款</button>`);
       if (canEditOwnClaim) actions.push(`<button class="btn primary" data-action="edit">Edit / 编辑</button>`);
+      if (canDeleteClaim(claim)) actions.push(`<button class="btn danger" data-action="delete">Delete / 删除</button>`);
       const detailActions = `<button class="btn" data-back>Back / 返回</button>${actions.join("")}`;
       const html = `
         ${pageHeader(claim.claim_number, canReview() ? "" : "Claim Details / 报销详情", canReview() ? "" : detailActions)}
@@ -3718,6 +3751,7 @@
       document.querySelector("[data-action='reject']")?.addEventListener("click", () => rejectClaim(claim));
       document.querySelector("[data-action='paid']")?.addEventListener("click", () => markPaid(claim));
       document.querySelector("[data-action='edit']")?.addEventListener("click", () => canReview() ? editClaim(claim) : resubmitNeedReview(claim));
+      document.querySelector("[data-action='delete']")?.addEventListener("click", () => deleteClaim(claim));
       bindOpenClaim();
     }
 
@@ -3779,7 +3813,7 @@
         if (refreshing) return;
         refreshing = true;
         const refreshWhenReady = () => {
-          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, [data-real-login]:disabled") || forgotBusy || photoBusy) {
+          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, #confirmDeleteClaim:disabled, [data-real-login]:disabled") || forgotBusy || photoBusy) {
             window.setTimeout(refreshWhenReady, 1000);
             return;
           }
