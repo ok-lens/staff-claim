@@ -82,6 +82,7 @@
     }
     .brand strong { display: block; font-size: 16px; }
     .brand span { display: block; font-size: 12px; color: #a6b3c2; margin-top: 2px; }
+    .app-version { margin-left: auto; align-self: flex-start; white-space: nowrap; font-size: 10px; color: #a6b3c2; }
     .profile-switcher {
       display: grid;
       gap: 8px;
@@ -908,6 +909,7 @@
           <strong>Staff Claims</strong>
           <span>员工垫付报销</span>
         </div>
+        <small class="app-version" title="App version / 程序版本">v2026.10.08.1</small>
       </div>
       <div class="profile-switcher" id="profileBox"></div>
       <nav class="nav" id="nav"></nav>
@@ -1161,6 +1163,12 @@
       route = nextRoute;
       activeClaimId = claimId || null;
       render();
+      if (route === "detail" && isLoggedIn && !mustChangePassword && !recoveryMode) {
+        const claim = state.claims.find(item => item.id === activeClaimId);
+        if (claim) refreshCloudImages(claim).then(() => {
+          if (route === "detail" && activeClaimId === claim.id) renderDetail();
+        });
+      }
     }
 
     function addAudit(claimId, action, metadata = {}, actorId = currentUser().id) {
@@ -2112,6 +2120,50 @@
       return uniqueUsers.find(user => user.id === activeUser.id) || activeUser;
     }
 
+    async function refreshCloudImages(claim) {
+      for (const attachment of claim.attachments) {
+        if (!attachment.storage_path) continue;
+        try {
+          const { data, error } = await getSupabaseClient().storage
+            .from(attachment.storage_bucket).createSignedUrl(attachment.storage_path, 3600);
+          attachment.data_url = error ? null : data?.signedUrl;
+          attachment.image_error = Boolean(error || !data?.signedUrl);
+        } catch {
+          attachment.data_url = null;
+          attachment.image_error = true;
+        }
+      }
+    }
+
+    async function syncSupabaseClaims(client) {
+      if (mustChangePassword || recoveryMode || recoveryLinkRequested || sessionStorage.getItem(RECOVERY_USER_KEY)) return;
+      const rows = [];
+      for (let offset = 0; ; offset += 200) {
+        const { data, error } = await client.from("claims")
+          .select("*, claim_attachments(*), claim_review_notes(*)")
+          .order("created_at", { ascending: false }).order("id", { ascending: false })
+          .range(offset, offset + 199);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < 200) break;
+      }
+      // RLS is authoritative; never merge another account's cached claims into this result.
+      state.claims = rows.map(row => ({
+        ...row,
+        claim_amount: Number(row.amount || 0),
+        receipt_total: Number(row.receipt_total || row.amount || 0),
+        merchant: row.merchant || "", receipt_number: row.receipt_number || "",
+        purpose: row.purpose || "", remarks: row.remarks || "", currency: row.currency || "MYR",
+        approved_at: row.status === "APPROVED" ? row.reviewed_at : null,
+        payment_date: row.paid_at?.slice(0, 10) || "",
+        attachments: (row.claim_attachments || []).map(file => ({
+          ...file, original_filename: file.file_name || "Receipt", data_url: null
+        })),
+        review_notes: (row.claim_review_notes || []).map(note => ({ ...note, message: note.note }))
+      }));
+      saveState();
+    }
+
     async function loadSupabaseProfile(authUser) {
       const client = getSupabaseClient();
       const { data: profile, error } = await client
@@ -2271,6 +2323,7 @@
         localStorage.setItem("staffClaimsMvp.currentUser", currentUserId);
         localStorage.setItem(AUTH_KEY, "true");
         isLoggedIn = true;
+        await syncSupabaseClaims(client);
         route = "dashboard";
         activeClaimId = null;
         reportPeriodFilter = currentMonthKey();
@@ -2329,6 +2382,7 @@
           }
         }
         const data = await syncSupabaseCategories(client);
+        if (isLoggedIn) await syncSupabaseClaims(client);
         const count = data.length;
         supabaseSync = { state: "ok", label: `Supabase connected / 已连接 · ${count} categories` };
         state.supabase = { connected_at: new Date().toISOString(), category_count: count };
@@ -2893,6 +2947,7 @@
     }
 
     function attachmentThumb(file, removable = false) {
+      if (!file.data_url) return `<div class="empty">${file.image_error ? "Photo unavailable. Reopen to retry / 照片暂时无法读取，请重新打开" : "Loading photo / 正在读取照片"}</div>`;
       return `<div class="thumb">
         <a href="${file.data_url}" target="_blank" rel="noopener"><img src="${file.data_url}" alt="${escapeHtml(file.original_filename)}"></a>
         <footer><span title="${escapeHtml(file.original_filename)}">${escapeHtml(file.original_filename.slice(0, 18))}</span>${removable ? `<button data-remove="${file.id}" type="button">Remove</button>` : ""}</footer>
@@ -3617,7 +3672,7 @@
           <section class="image-panel">
             <div class="card section">
               <h2>Receipt / 收据</h2>
-              ${receipt ? `<a href="${receipt.data_url}" target="_blank" rel="noopener"><img class="receipt-large" src="${receipt.data_url}" alt="Receipt"></a>` : `<div class="empty"><strong>No receipt</strong></div>`}
+              ${receipt?.data_url ? `<a href="${receipt.data_url}" target="_blank" rel="noopener"><img class="receipt-large" src="${receipt.data_url}" alt="Receipt"></a>` : `<div class="empty"><strong>${receipt ? (receipt.image_error ? "Photo unavailable / 照片暂时无法读取，请重新打开" : "Loading photo / 正在读取照片") : "No receipt / 没有收据"}</strong></div>`}
             </div>
             <div class="card section">
               <h2>Purchase Proof / 实物照片</h2>

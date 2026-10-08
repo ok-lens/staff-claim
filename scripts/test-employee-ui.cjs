@@ -43,11 +43,11 @@ function mockSdk() {
     },
     from: table => {
       let id;
-      const response = () => ({ data: table === "profiles" ? profiles.filter(p => !id || p.id === id) : [
+      const response = () => ({ data: table === "profiles" ? profiles.filter(p => !id || p.id === id) : table === "claims" ? [] : [
         { id: "00000000-0000-4000-8000-000000000004", name_en: "Petrol", name_zh: "汽油", accounting_code: "908-0000", is_active: true }
       ], error: null });
       const query = {
-        select: () => query, order: () => query,
+        select: () => query, order: () => query, range: () => query,
         eq: (_, value) => { id = value; return query; },
         maybeSingle: async () => ({ data: profiles.find(p => p.id === id), error: null }),
         then: (resolve, reject) => Promise.resolve(response()).then(resolve, reject)
