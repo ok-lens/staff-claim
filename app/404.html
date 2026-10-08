@@ -1043,7 +1043,15 @@
     }
 
     function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state, function (key, value) {
+          if (key === "data_url" && this.local_image && typeof value === "string" && value.startsWith("data:")) return undefined;
+          return value;
+        }));
+      } catch (error) {
+        console.warn("Local draft cache unavailable", error.name);
+        toast("Draft not saved on device. Keep this page open and submit / 草稿未能保存在手机，请保持页面开启并提交");
+      }
     }
 
     function migrateDemoUsers() {
@@ -1425,6 +1433,52 @@
       renderAdmin();
     }
 
+    let photoBusy = false;
+    let imageDatabase;
+    function openImageDatabase() {
+      if (!imageDatabase) imageDatabase = new Promise((resolve, reject) => {
+        const request = indexedDB.open("staffClaimsImages", 1);
+        request.onupgradeneeded = () => request.result.createObjectStore("images");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => reject(new Error("Image database blocked"));
+      });
+      return imageDatabase;
+    }
+    async function storeImage(id, data) {
+      const db = await openImageDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction("images", "readwrite");
+        transaction.objectStore("images").put(data, id);
+        transaction.oncomplete = resolve;
+        transaction.onabort = () => reject(transaction.error || new Error("Image save failed"));
+        transaction.onerror = () => reject(transaction.error);
+      });
+    }
+    async function restoreImages() {
+      const files = [
+        ...Object.values(state.drafts).flatMap(draft => [draft.receipt, ...(draft.proofs || [])]),
+        ...state.claims.flatMap(claim => claim.attachments || [])
+      ].filter(Boolean);
+      for (const file of files) {
+        try {
+          if (file.data_url?.startsWith("data:")) {
+            await storeImage(file.id, file.data_url);
+            file.local_image = true;
+          } else if (file.local_image) {
+            const db = await openImageDatabase();
+            file.data_url = await new Promise((resolve, reject) => {
+              const request = db.transaction("images").objectStore("images").get(file.id);
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+          }
+        } catch (error) {
+          console.warn("Image restore failed", error.name);
+        }
+      }
+      saveState();
+    }
     async function fileToAttachment(file, type) {
       const arrayBuffer = await file.arrayBuffer();
       const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
@@ -1435,8 +1489,11 @@
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+      const id = crypto.randomUUID();
+      await storeImage(id, dataUrl);
       return {
-        id: crypto.randomUUID(),
+        id,
+        local_image: true,
         attachment_type: type,
         original_filename: file.name,
         file_size: file.size,
@@ -1684,7 +1741,7 @@
 
     function validateDraft(draft) {
       const errors = [];
-      if (!draft.receipt) errors.push("Receipt photo is required / 必须上传收据");
+      if (!draft.receipt?.data_url) errors.push("Receipt photo is required / 必须上传收据，请重新选择照片");
       if (!draft.purchase_date) errors.push("Purchase date is required / 必须填写日期");
       if (!Number.isFinite(Number(draft.claim_amount)) || Number(draft.claim_amount) <= 0) errors.push("Enter a positive claim amount / 请填写大于零的报销金额");
       if (Number(draft.receipt_total) && Number(draft.claim_amount) > Number(draft.receipt_total)) errors.push("Claim amount cannot exceed receipt total / 报销金额不能超过收据总额");
@@ -2870,20 +2927,36 @@
       });
       const handleReceipt = async event => {
         const file = event.target.files[0];
-        if (!file) return;
-        updateDraft({ receipt: await fileToAttachment(file, "RECEIPT"), ai_status: "READY_TO_SCAN" });
-        toast("Receipt uploaded / 收据已上传");
-        renderNewClaim();
+        if (!file || photoBusy) return;
+        photoBusy = true;
+        document.querySelector("[data-submit]").disabled = true;
+        try {
+          updateDraft({ receipt: await fileToAttachment(file, "RECEIPT"), ai_status: "READY_TO_SCAN" });
+          toast("Receipt attached / 收据照片已加入");
+        } catch (error) {
+          toast("Photo could not be saved. Check device storage and select again / 照片保存失败，请检查手机空间后重新选择");
+        } finally {
+          photoBusy = false;
+          renderNewClaim();
+        }
       };
       document.getElementById("receiptCamera").addEventListener("change", handleReceipt);
       document.getElementById("receiptUpload").addEventListener("change", handleReceipt);
       const handleProofs = async event => {
         const files = Array.from(event.target.files || []);
-        if (!files.length) return;
-        const attachments = await Promise.all(files.map(file => fileToAttachment(file, "PURCHASE_PROOF")));
-        updateDraft({ proofs: [...getDraft().proofs, ...attachments] });
-        toast("Purchase proof uploaded / 实物照片已上传");
-        renderNewClaim();
+        if (!files.length || photoBusy) return;
+        photoBusy = true;
+        document.querySelector("[data-submit]").disabled = true;
+        try {
+          const attachments = await Promise.all(files.map(file => fileToAttachment(file, "PURCHASE_PROOF")));
+          updateDraft({ proofs: [...getDraft().proofs, ...attachments] });
+          toast("Purchase proof attached / 实物照片已加入");
+        } catch (error) {
+          toast("Photo could not be saved. Check device storage and select again / 照片保存失败，请检查手机空间后重新选择");
+        } finally {
+          photoBusy = false;
+          renderNewClaim();
+        }
       };
       document.getElementById("proofCamera").addEventListener("change", handleProofs);
       document.getElementById("proofUpload").addEventListener("change", handleProofs);
@@ -3637,7 +3710,7 @@
       if (event.target.id === "modalBackdrop") closeModal();
     });
     render();
-    connectSupabase();
+    restoreImages().then(() => connectSupabase());
   </script>
   <script>
     if ("serviceWorker" in navigator) {
@@ -3651,7 +3724,7 @@
         if (refreshing) return;
         refreshing = true;
         const refreshWhenReady = () => {
-          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, [data-real-login]:disabled") || forgotBusy) {
+          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, [data-real-login]:disabled") || forgotBusy || photoBusy) {
             window.setTimeout(refreshWhenReady, 1000);
             return;
           }
