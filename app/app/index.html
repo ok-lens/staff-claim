@@ -909,7 +909,7 @@
           <strong>Staff Claims</strong>
           <span>员工垫付报销</span>
         </div>
-        <small class="app-version" title="App version / 程序版本">v1.12</small>
+        <small class="app-version" title="App version / 程序版本">v1.13</small>
       </div>
       <div class="profile-switcher" id="profileBox"></div>
       <nav class="nav" id="nav"></nav>
@@ -924,6 +924,7 @@
   </div>
   <div class="toast" id="toast"></div>
 
+  <script src="/receipt-ocr.js"></script>
   <script>
     const STORAGE_KEY = "staffClaimsMvp.v1";
     const AUTH_KEY = "staffClaimsMvp.loggedIn";
@@ -1572,33 +1573,69 @@
       return null;
     }
 
-    function simulateAiScan() {
+    let ocrBusy = false;
+    let ocrScript;
+    async function scanReceipt() {
       const draft = getDraft();
-      const samples = [
-        { merchant: "MR.DIY", receipt_number: "A23891", subtotal: 46.80, tax: 2.81, total: 49.61 },
-        { merchant: "POPULAR BOOKSTORE", receipt_number: "PB-77219", subtotal: 86.00, tax: 0, total: 86.00 },
-        { merchant: "SHELL", receipt_number: "SH-11907", subtotal: 70.00, tax: 0, total: 70.00 }
-      ];
-      const sample = samples[Math.floor(Math.random() * samples.length)];
-      updateDraft({
-        merchant: sample.merchant,
-        receipt_number: sample.receipt_number,
-        purchase_date: todayISO(),
-        receipt_subtotal: sample.subtotal,
-        receipt_tax: sample.tax,
-        receipt_total: sample.total,
-        claim_amount: sample.total,
-        currency: "MYR",
-        ai_status: "SCANNED",
-        ai_flags: {
-          merchant: "detected",
-          receipt_number: "check",
-          purchase_date: "detected",
-          receipt_total: "detected"
+      if (ocrBusy || !draft.receipt?.data_url || draft.editing_claim_id) return;
+      const owner = currentUserId;
+      const receiptId = draft.receipt.id;
+      const previousDate = draft.purchase_date;
+      const previousAmount = draft.claim_amount;
+      let worker;
+      let timer;
+      let expired = false;
+      ocrBusy = true;
+      const button = document.querySelector('[data-scan]');
+      if (button) { button.disabled = true; button.textContent = 'Scanning / 正在识别...'; }
+      try {
+        if (!window.Tesseract) {
+          if (!ocrScript) ocrScript = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+            script.onload = resolve;
+            script.onerror = () => { ocrScript = null; reject(new Error('OCR unavailable')); };
+            document.head.appendChild(script);
+          });
+          await Promise.race([ocrScript, new Promise((_, reject) => {
+            timer = setTimeout(() => { ocrScript = null; reject(new Error('OCR download timed out')); }, 30000);
+          })]);
+          clearTimeout(timer);
         }
-      });
-      toast("Receipt scanned. Please verify / 已扫描，请核对");
-      renderNewClaim();
+        const result = await Promise.race([
+          (async () => {
+            worker = await Tesseract.createWorker('eng', 1, {
+              workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/worker.min.js',
+              corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0',
+              langPath: 'https://tessdata.projectnaptha.com/4.0.0'
+            });
+            if (expired) { await worker.terminate(); throw new Error('Scan timed out'); }
+            return worker.recognize(draft.receipt.data_url);
+          })(),
+          new Promise((_, reject) => { timer = setTimeout(() => { expired = true; reject(new Error('Scan timed out')); }, 90000); })
+        ]);
+        if (currentUserId !== owner || getDraft().receipt?.id !== receiptId) return;
+        const detected = ReceiptOCR.parseReceipt(result.data.text);
+        const patch = { ai_status: 'SCANNED', ai_flags: {} };
+        if (detected.date && !getDraft().user_entered_date && getDraft().purchase_date === previousDate && previousDate === todayISO()) {
+          patch.purchase_date = detected.date;
+          patch.ai_flags.purchase_date = 'check';
+        }
+        if (detected.total && getDraft().claim_amount === previousAmount && !previousAmount) {
+          patch.claim_amount = detected.total;
+          patch.receipt_total = detected.total;
+          patch.ai_flags.receipt_total = 'check';
+        }
+        updateDraft(patch);
+        toast(detected.date || detected.total ? 'Scan completed. Verify date and amount / 识别完成，请核对日期和金额' : 'No clear date or total found / 未识别到明确日期或总额，请手动填写');
+      } catch {
+        toast('Unable to scan. Enter date and amount manually / 识别失败，请手动填写日期和金额');
+      } finally {
+        clearTimeout(timer);
+        if (worker) await worker.terminate().catch(() => {});
+        ocrBusy = false;
+        if (route === 'new') renderNewClaim();
+      }
     }
 
     function claimVisibleToUser(claim) {
@@ -2419,10 +2456,10 @@
           <div class="session-name">${escapeHtml(currentUser().name)}</div>
           <div class="session-role">${escapeHtml(currentUser().role)} · ${canReview() ? "Can view all claims / 可看全部" : "Own claims only / 只看自己"}</div>
         </div>
-        <div class="session-actions">
+        <details class="account-settings" style="text-align:right"><summary title="Settings / 设置" style="cursor:pointer">&#9881; Settings / 设置</summary><div class="session-actions">
           ${mustChangePassword || recoveryMode ? "" : '<button class="btn" data-change-password>Change Password / 修改密码</button>'}
           <button class="btn" data-logout>Logout / 登出</button>
-        </div>
+        </div></details>
       `;
       profileBox.querySelector("[data-logout]").addEventListener("click", logout);
       profileBox.querySelector("[data-change-password]")?.addEventListener("click", () => setRoute("password"));
@@ -2863,7 +2900,7 @@
         <div class="wizard">
           ${pageHeader(editingClaimId ? "Correct Claim / 修改报销" : "New Claim / 新报销", "Mobile first submission / 手机提交优先", `<button class="btn" data-clear>Clear Draft / 清除草稿</button>`)}
           <div class="steps">${[1,2,3,4,5].map((_, index) => `<div class="step-pill ${index < progressFromDraft(draft) ? "active" : ""}"></div>`).join("")}</div>
-          ${draft.ai_status === "SCANNED" ? `<div class="notice success">AI scan completed. Please verify before submit / 已扫描，请提交前核对。</div>` : ""}
+          ${draft.ai_status === "SCANNED" ? `<div class="notice success">Receipt scan completed. Please verify before submit / 收据已识别，请提交前核对。</div>` : ""}
           ${duplicateNotice}
           <div data-draft-validation class="notice ${validation.length ? "warning" : "success"}">${validation.length ? escapeHtml(validation[0]) : "Ready to submit / 可以提交"}</div>
           <section class="card section">
@@ -2873,7 +2910,7 @@
               <div class="upload-actions">
                 <label class="btn primary" for="receiptCamera">Take Receipt Photo / 拍收据</label>
                 <label class="btn" for="receiptUpload">Upload Receipt / 上传收据</label>
-                ${draft.receipt ? `<button class="btn" data-scan>Scan Receipt / 扫描收据</button>` : ""}
+                ${draft.receipt && !editingClaimId ? `<button class="btn" data-scan ${ocrBusy ? 'disabled' : ''}>${ocrBusy ? 'Scanning / 正在识别...' : 'Scan Receipt / 扫描收据'}</button>` : ""}
                 ${draft.receipt ? `<button class="btn danger" data-delete-receipt type="button">Delete Receipt / 删除收据</button>` : ""}
               </div>
               <input class="hide" id="receiptCamera" type="file" accept="image/*" capture="environment">
@@ -2900,7 +2937,7 @@
           </section>
 
           <section class="card section">
-            <h2>Purchase Proof / 实物照片</h2>
+            <details ${draft.proofs.length ? 'open' : ''}><summary style="cursor:pointer;font-weight:700">Purchase Proof / 实物照片</summary>
             <p class="small-muted">Optional / 可选</p>
             <div class="upload-box">
               <div class="upload-actions">
@@ -2911,6 +2948,7 @@
               <input class="hide" id="proofUpload" type="file" accept="image/*" multiple>
               <div class="preview-grid">${proofPreview}</div>
             </div>
+            </details>
           </section>
 
           <section class="card section">
@@ -2972,12 +3010,13 @@
       document.querySelectorAll("[data-field]").forEach(input => {
         input.addEventListener("input", () => {
           const patch = { [input.dataset.field]: input.value };
+          if (input.dataset.field === "purchase_date") patch.user_entered_date = true;
           if (input.dataset.field === "receipt_total" && !getDraft().claim_amount) patch.claim_amount = input.value;
           updateDraft(patch);
           updateDraftFeedback();
         });
         input.addEventListener("change", () => {
-          updateDraft({ [input.dataset.field]: input.value });
+          updateDraft({ [input.dataset.field]: input.value, ...(input.dataset.field === "purchase_date" ? { user_entered_date: true } : {}) });
           updateDraftFeedback();
         });
       });
@@ -2994,6 +3033,7 @@
         } finally {
           photoBusy = false;
           renderNewClaim();
+          if (!getDraft().editing_claim_id && getDraft().receipt?.original_filename === file.name) scanReceipt();
         }
       };
       document.getElementById("receiptCamera").addEventListener("change", handleReceipt);
@@ -3016,7 +3056,7 @@
       };
       document.getElementById("proofCamera").addEventListener("change", handleProofs);
       document.getElementById("proofUpload").addEventListener("change", handleProofs);
-      document.querySelector("[data-scan]")?.addEventListener("click", simulateAiScan);
+      document.querySelector("[data-scan]")?.addEventListener("click", scanReceipt);
       document.querySelector("[data-delete-receipt]")?.addEventListener("click", () => {
         updateDraft({
           receipt: null,
@@ -3032,6 +3072,7 @@
         renderNewClaim();
       });
       document.querySelector("[data-submit]").addEventListener("click", async event => {
+        if (ocrBusy) return toast('Scanning. Please wait / 正在识别，请稍候');
         const button = event.currentTarget;
         const editingId = getDraft().editing_claim_id;
         button.disabled = true;
@@ -3813,7 +3854,7 @@
         if (refreshing) return;
         refreshing = true;
         const refreshWhenReady = () => {
-          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, #confirmDeleteClaim:disabled, [data-real-login]:disabled") || forgotBusy || photoBusy) {
+          if (document.querySelector("[data-submit]:disabled, [data-add-user]:disabled, [data-password-save]:disabled, #saveUserSettings:disabled, #confirmDeleteClaim:disabled, [data-real-login]:disabled") || forgotBusy || photoBusy || ocrBusy) {
             window.setTimeout(refreshWhenReady, 1000);
             return;
           }

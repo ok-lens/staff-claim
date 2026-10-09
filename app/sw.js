@@ -1,7 +1,8 @@
-const CACHE_NAME = "staff-claims-pwa-v20";
+const CACHE_NAME = "staff-claims-pwa-v21";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./receipt-ocr.js",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-maskable.svg"

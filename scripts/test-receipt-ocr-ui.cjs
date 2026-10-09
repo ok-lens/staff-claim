@@ -1,0 +1,52 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
+const { mockSdk } = require('./test-employee-ui.cjs');
+(async () => {
+  const browser = await chromium.connectOverCDP(process.env.CDP_URL);
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const errors = [];
+  try {
+    await context.addInitScript(() => sessionStorage.setItem('mock.mode', 'staff'));
+    await context.route(/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js/, route => route.fulfill({ contentType: 'application/javascript', body: `(${mockSdk.toString()})();` }));
+    const page = await context.newPage();
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto('http://localhost:5183');
+    await page.locator('[data-route="new"]').click();
+    assert.equal(await page.locator('[data-logout]').isVisible(), false);
+    await page.locator('.account-settings summary').click();
+    assert.ok(await page.locator('[data-logout]').isVisible());
+    await page.locator('.account-settings summary').click();
+    assert.equal(await page.locator('label[for="proofCamera"]').isVisible(), false);
+    await page.getByText('Purchase Proof / 实物照片', { exact: true }).click();
+    assert.ok(await page.locator('label[for="proofCamera"]').isVisible());
+    const png = await page.evaluate(() => {
+      const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 700;
+      const ctx = canvas.getContext('2d'); ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 1000, 700);
+      ctx.fillStyle = 'black'; ctx.font = '36px Arial';
+      ['TEST RECEIPT', 'Date: 09/10/2026', 'Petrol', 'TOTAL PAYABLE RM 49.40'].forEach((line, index) => ctx.fillText(line, 60, 100 + index * 100));
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+    await page.locator('#receiptUpload').setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+    await page.waitForFunction(() => !ocrBusy && getDraft().ai_status === 'SCANNED', null, { timeout: 120000 });
+    assert.equal(await page.locator('[data-field="claim_amount"]').inputValue(), '49.4');
+    assert.equal(await page.locator('[data-field="purchase_date"]').inputValue(), '2026-10-09');
+    assert.equal(await page.evaluate(() => state.claims.length), 0);
+    assert.equal(await page.locator('.app-version').textContent(), 'v1.13');
+    await page.locator('[data-field="claim_amount"]').fill('12.34');
+    await page.locator('[data-field="purchase_date"]').fill('2026-09-01');
+    await page.locator('[data-scan]').click();
+    await page.waitForFunction(() => !ocrBusy, null, { timeout: 120000 });
+    assert.equal(await page.locator('[data-field="claim_amount"]').inputValue(), '12.34');
+    assert.equal(await page.locator('[data-field="purchase_date"]').inputValue(), '2026-09-01');
+    const output = path.resolve(__dirname, '../test-results/receipt-ocr');
+    await fs.mkdir(output, { recursive: true });
+    await page.screenshot({ path: path.join(output, 'mobile.png') });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: path.join(output, 'desktop.png') });
+    assert.deepEqual(errors, []);
+    console.log('PASS: real browser OCR reads generated receipt/date/total; manual values retained; no claim changes; settings/proof toggles, mobile/desktop layout.');
+  } finally { await context.close(); await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

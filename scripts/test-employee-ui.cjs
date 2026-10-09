@@ -176,10 +176,12 @@ if (require.main === module) (async () => {
     await staff.reload();
     await staff.locator('[data-route="new"]').waitFor();
     assert.equal(await staff.locator("#passwordForm").count(), 0);
+    await staff.locator('.account-settings summary').click();
     await staff.locator('[data-change-password]').click();
     await staff.locator("#passwordForm").waitFor();
     await staff.locator("#cancelPassword").click();
     await staff.locator('[data-route="new"]').waitFor();
+    await staff.locator('.account-settings summary').click();
     await staff.locator('[data-logout]').click();
     await staff.locator('[data-real-login]').waitFor();
     assert.ok(await staff.evaluate(() => window.__calls.some(call => call.action === "signout")));

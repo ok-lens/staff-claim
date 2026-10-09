@@ -35,7 +35,7 @@ function cloudMock() {
     await page.evaluate(() => setRoute('detail', state.claims[0].id));
     await page.locator('.receipt-large').waitFor();
     assert.ok(await page.locator('.receipt-large').evaluate(img => img.complete && img.naturalWidth > 0));
-    assert.equal(await page.locator('.app-version').textContent(), 'v1.12');
+    assert.equal(await page.locator('.app-version').textContent(), 'v1.13');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     const artifacts = path.resolve(__dirname, '../test-results/cloud-receipts');
     await fs.mkdir(artifacts, { recursive: true });
